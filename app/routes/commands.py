@@ -34,3 +34,13 @@ async def send_command(data: Command):
                     "status": "OK"}
 
         return response
+
+from app.database import get_db_connection
+
+@router.get("/test-db")
+async def test_db():
+    connection = get_db_connection()
+    if connection:
+        return {"message": "Database connection successful!"}
+    else:
+        return {"message": "Database connection failed."}
