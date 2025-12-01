@@ -1,0 +1,36 @@
+running egg_info
+creating ../../build/robot_controller/robot_controller.egg-info
+writing ../../build/robot_controller/robot_controller.egg-info/PKG-INFO
+writing dependency_links to ../../build/robot_controller/robot_controller.egg-info/dependency_links.txt
+writing requirements to ../../build/robot_controller/robot_controller.egg-info/requires.txt
+writing top-level names to ../../build/robot_controller/robot_controller.egg-info/top_level.txt
+writing manifest file '../../build/robot_controller/robot_controller.egg-info/SOURCES.txt'
+reading manifest file '../../build/robot_controller/robot_controller.egg-info/SOURCES.txt'
+writing manifest file '../../build/robot_controller/robot_controller.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/quadg/robot_controller/build/robot_controller/build
+creating /home/quadg/robot_controller/build/robot_controller/build/lib
+creating /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller
+copying robot_controller/__init__.py -> /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller
+copying robot_controller/scan_routine.py -> /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller
+copying robot_controller/controller_node.py -> /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller
+running install
+running install_lib
+creating /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller
+copying /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller/__init__.py -> /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller
+copying /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller/scan_routine.py -> /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller
+copying /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller/controller_node.py -> /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller
+byte-compiling /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller/scan_routine.py to scan_routine.cpython-312.pyc
+byte-compiling /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller/controller_node.py to controller_node.cpython-312.pyc
+running install_data
+creating /home/quadg/robot_controller/install/robot_controller/share/ament_index
+creating /home/quadg/robot_controller/install/robot_controller/share/ament_index/resource_index
+creating /home/quadg/robot_controller/install/robot_controller/share/ament_index/resource_index/packages
+copying resource/robot_controller -> /home/quadg/robot_controller/install/robot_controller/share/ament_index/resource_index/packages
+copying package.xml -> /home/quadg/robot_controller/install/robot_controller/share/robot_controller
+running install_egg_info
+Copying ../../build/robot_controller/robot_controller.egg-info to /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller-0.0.0-py3.12.egg-info
+running install_scripts
+writing list of installed files to '/home/quadg/robot_controller/build/robot_controller/install.log'

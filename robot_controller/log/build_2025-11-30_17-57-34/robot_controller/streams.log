@@ -1,0 +1,29 @@
+[0.539s] Invoking command in '/home/quadg/robot_controller/src/robot_controller': PYTHONPATH=/home/quadg/robot_controller/build/robot_controller/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/robot_controller build --build-base /home/quadg/robot_controller/build/robot_controller/build install --record /home/quadg/robot_controller/build/robot_controller/install.log --single-version-externally-managed install_data
+[0.691s] running egg_info
+[0.701s] writing ../../build/robot_controller/robot_controller.egg-info/PKG-INFO
+[0.702s] writing dependency_links to ../../build/robot_controller/robot_controller.egg-info/dependency_links.txt
+[0.702s] writing entry points to ../../build/robot_controller/robot_controller.egg-info/entry_points.txt
+[0.703s] writing requirements to ../../build/robot_controller/robot_controller.egg-info/requires.txt
+[0.703s] writing top-level names to ../../build/robot_controller/robot_controller.egg-info/top_level.txt
+[0.724s] reading manifest file '../../build/robot_controller/robot_controller.egg-info/SOURCES.txt'
+[0.724s] writing manifest file '../../build/robot_controller/robot_controller.egg-info/SOURCES.txt'
+[0.724s] running build
+[0.725s] running build_py
+[0.725s] copying robot_controller/scan_routine.py -> /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller
+[0.725s] copying robot_controller/controller_node.py -> /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller
+[0.727s] running install
+[0.731s] running install_lib
+[0.741s] copying /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller/scan_routine.py -> /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller
+[0.741s] copying /home/quadg/robot_controller/build/robot_controller/build/lib/robot_controller/controller_node.py -> /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller
+[0.743s] byte-compiling /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller/scan_routine.py to scan_routine.cpython-312.pyc
+[0.745s] byte-compiling /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller/controller_node.py to controller_node.cpython-312.pyc
+[0.745s] running install_data
+[0.746s] running install_egg_info
+[0.757s] removing '/home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller-0.0.0-py3.12.egg-info' (and everything under it)
+[0.758s] Copying ../../build/robot_controller/robot_controller.egg-info to /home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages/robot_controller-0.0.0-py3.12.egg-info
+[0.759s] running install_scripts
+[0.833s] Installing mock_backend script to /home/quadg/robot_controller/install/robot_controller/lib/robot_controller
+[0.833s] Installing robot_controller_node script to /home/quadg/robot_controller/install/robot_controller/lib/robot_controller
+[0.834s] Installing scan_routine_node script to /home/quadg/robot_controller/install/robot_controller/lib/robot_controller
+[0.834s] writing list of installed files to '/home/quadg/robot_controller/build/robot_controller/install.log'
+[0.851s] Invoked command in '/home/quadg/robot_controller/src/robot_controller' returned '0': PYTHONPATH=/home/quadg/robot_controller/build/robot_controller/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/quadg/robot_controller/install/robot_controller/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/robot_controller build --build-base /home/quadg/robot_controller/build/robot_controller/build install --record /home/quadg/robot_controller/build/robot_controller/install.log --single-version-externally-managed install_data

@@ -1,0 +1,4 @@
+[console_scripts]
+mock_backend = robot_controller.mock_backend_node:main
+robot_controller_node = robot_controller.controller_node:main
+scan_routine_node = robot_controller.scan_routine:main
