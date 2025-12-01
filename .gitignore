@@ -1,0 +1,10 @@
+model/venv/
+__pycache__/
+*.pyc
+robot_controller/venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
