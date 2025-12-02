@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Power, 
-  Pause, 
-  XCircle, 
-  Home, 
-  Battery, 
+import {
+  Power,
+  Pause,
+  XCircle,
+  Home,
+  Battery,
   Wifi,
   Camera,
   Package,
@@ -15,26 +15,26 @@ import {
   Settings,
   Folder
 } from 'lucide-react';
+import { useRoverStatus } from '../hooks/useRoverStatus';
+import { useRoverCommands } from '../hooks/useRoverCommands';
 
 export default function RoverDashboard() {
-  const [roverStatus, setRoverStatus] = useState('Returning to Base');
-  const [batteryLevel, setBatteryLevel] = useState(86.8);
-  const [connectionStatus, setConnectionStatus] = useState('Connected');
+  // Use real API hooks
+  const { status, loading: statusLoading, error: statusError } = useRoverStatus(2000);
+  const { sendCommand, loading: commandLoading, error: commandError } = useRoverCommands();
+
+  // Local state for UI-specific data
   const [scannedItems, setScannedItems] = useState(16);
   const [currentScan, setCurrentScan] = useState('');
   const [uptime, setUptime] = useState('00:15:32');
 
-  useEffect(() => {
-    if (roverStatus === 'Scanning' || roverStatus === 'Moving') {
-      const interval = setInterval(() => {
-        setBatteryLevel(prev => Math.max(0, prev - 0.1));
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [roverStatus]);
+  // Extract data from API response or use defaults
+  const roverStatus = status?.state || 'idle';
+  const batteryLevel = status?.battery_level || 0;
+  const connectionStatus = statusError ? 'Disconnected' : 'Connected';
 
   useEffect(() => {
-    if (roverStatus === 'Scanning') {
+    if (roverStatus === 'scanning' || roverStatus === 'moving') {
       const items = [
         'Box #A-1234',
         'Pallet #B-5678',
@@ -50,33 +50,21 @@ export default function RoverDashboard() {
     }
   }, [roverStatus]);
 
-  const handleCommand = (command) => {
-    switch(command) {
-      case 'start':
-        setRoverStatus('Scanning');
-        break;
-      case 'pause':
-        setRoverStatus('Paused');
-        break;
-      case 'terminate':
-        setRoverStatus('Idle');
-        setCurrentScan('');
-        break;
-      case 'return':
-        setRoverStatus('Returning to Base');
-        setCurrentScan('');
-        break;
+  const handleCommand = async (command) => {
+    try {
+      await sendCommand(command);
+      // Status will update automatically via polling
+    } catch (error) {
+      console.error('Command failed:', error);
     }
   };
 
   const getStatusColor = () => {
-    switch(roverStatus) {
-      case 'Scanning': return 'text-green-400';
-      case 'Paused': return 'text-yellow-400';
-      case 'Returning to Base': return 'text-blue-400';
-      case 'Idle': return 'text-gray-400';
-      default: return 'text-gray-400';
-    }
+    const status = roverStatus.toLowerCase();
+    if (status.includes('scan')) return 'text-green-400';
+    if (status.includes('pause')) return 'text-yellow-400';
+    if (status.includes('return')) return 'text-blue-400';
+    return 'text-gray-400';
   };
 
   const getBatteryColor = () => {
@@ -100,24 +88,24 @@ export default function RoverDashboard() {
           
           <button
             onClick={() => handleCommand('start')}
-            disabled={roverStatus === 'Scanning'}
-            className="w-16 h-16 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 rounded-lg flex items-center justify-center transition-all mx-auto"
+            disabled={roverStatus !== 'idle'}
+            className="w-16 h-16 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:opacity-50 rounded-lg flex items-center justify-center transition-all mx-auto"
           >
             <Power size={24} />
           </button>
-          
+
           <button
             onClick={() => handleCommand('pause')}
-            disabled={roverStatus !== 'Scanning'}
-            className="w-16 h-16 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 rounded-lg flex items-center justify-center transition-all mx-auto"
+            disabled={roverStatus === 'idle'}
+            className="w-16 h-16 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:opacity-50 rounded-lg flex items-center justify-center transition-all mx-auto"
           >
             <Pause size={24} />
           </button>
-          
+
           <button
-            onClick={() => handleCommand('terminate')}
-            disabled={roverStatus === 'Idle'}
-            className="w-16 h-16 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 rounded-lg flex items-center justify-center transition-all mx-auto"
+            onClick={() => handleCommand('cancel')}
+            disabled={roverStatus === 'idle'}
+            className="w-16 h-16 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:opacity-50 rounded-lg flex items-center justify-center transition-all mx-auto"
           >
             <XCircle size={24} />
           </button>
