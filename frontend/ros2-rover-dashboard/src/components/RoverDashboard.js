@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useRoverStatus } from '../hooks/useRoverStatus';
 import { useRoverCommands } from '../hooks/useRoverCommands';
+import CameraFeed from './CameraFeed';
 
 export default function RoverDashboard() {
   // Use real API hooks
@@ -190,37 +191,7 @@ export default function RoverDashboard() {
             </div>
 
             {/* Camera Feed */}
-            <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
-              <div className="bg-gradient-to-br from-blue-950 to-gray-950 rounded-lg aspect-video flex items-center justify-center border-2 border-gray-800 relative">
-                {roverStatus === 'Idle' ? (
-                  <div className="text-center text-gray-600">
-                    <Camera size={64} className="mx-auto mb-4 opacity-50" />
-                    <p>Camera feed inactive</p>
-                    <p className="text-sm">Start scan to view live feed</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-gray-900/40"></div>
-                    <div className="relative text-center z-10">
-                      <div className="animate-pulse mb-4">
-                        <Camera size={64} className="mx-auto text-blue-400" />
-                      </div>
-                      <p className="text-blue-400 font-semibold text-lg">LIVE FEED ACTIVE</p>
-                      {currentScan && (
-                        <div className="mt-4 bg-black/50 px-4 py-2 rounded">
-                          <p className="text-green-400 text-sm">Currently Scanning:</p>
-                          <p className="text-white font-bold">{currentScan}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold flex items-center">
-                      <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
-                      REC
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+            <CameraFeed isActive={roverStatus !== 'idle'} />
           </div>
 
           {/* Right Column - Recent Scans */}
