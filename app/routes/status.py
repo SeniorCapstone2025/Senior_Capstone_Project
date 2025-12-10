@@ -1,10 +1,13 @@
 from fastapi import APIRouter
 from datetime import datetime
+import logging
 
 from app.database import save_status
 from app.utils.state_manager import rover_state
+from app.config import get_settings
 
 router = APIRouter(prefix="/status", tags=["status"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/")
@@ -25,11 +28,20 @@ async def status():
         ]
     }
 
-    # Save status to database
-    save_status(
-        state=status_data["state"],
-        battery=status_data["battery_level"],
-        current_task=status_data["current_task"],
-    )
+    # Only save if state has changed significantly or heartbeat elapsed
+    settings = get_settings()
+    if rover_state.should_save_to_database(
+        battery_threshold=settings.status_cache_battery_threshold,
+        heartbeat_seconds=settings.status_cache_heartbeat_seconds
+    ):
+        save_status(
+            state=status_data["state"],
+            battery=status_data["battery_level"],
+            current_task=status_data["current_task"],
+        )
+        rover_state.mark_as_saved()
+        logger.info("Status saved to database (change detected or heartbeat)")
+    else:
+        logger.debug("Status not saved (no significant changes)")
 
     return status_data

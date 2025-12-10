@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Model Settings
     yolo_model_path: str = "model/yolo11n.pt"
 
+    # Status Caching Settings
+    status_cache_battery_threshold: float = 5.0  # Percentage change to trigger save
+    status_cache_heartbeat_seconds: int = 300    # 5 minutes in seconds
+
     class Config:
         env_file = ".env"
         case_sensitive = False

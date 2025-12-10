@@ -69,6 +69,20 @@ def save_detected_object(object_name: str, confidence: float, x: float, y: float
         logger.error(f"Error saving detection: {e}")
         raise
 
+def get_inventory_item(item_id: str):
+    try:
+        client = get_supabase_client()
+        result = client.table("inventory")\
+            .select("*")\
+            .eq("item_id", item_id)\
+            .execute()
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error fetching inventory item {item_id}: {e}")
+        return None
+
 
 def get_command_logs(limit: int = 50):
     """Retrieve command logs from Supabase"""

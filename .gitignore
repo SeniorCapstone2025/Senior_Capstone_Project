@@ -9,3 +9,5 @@ __pycache__/
 .idea/
 .vscode/
 *.env.local
+frontend/ros2-rover-dashboard/node_modules
+frontend/ros2-rover-dashboard/.next
