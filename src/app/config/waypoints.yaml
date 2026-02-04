@@ -1,0 +1,30 @@
+# Waypoints for inventory scanning navigation
+# Coordinates are in meters relative to the map origin
+# theta is orientation in radians
+
+waypoints:
+  home:
+    x: 0.0
+    y: 0.0
+    theta: 0.0
+
+  shelf_1:
+    x: 1.0
+    y: 0.0
+    theta: 1.57  # facing the shelf (90 degrees)
+
+  shelf_2:
+    x: 2.0
+    y: 0.0
+    theta: 1.57
+
+  shelf_3:
+    x: 3.0
+    y: 0.0
+    theta: 1.57
+
+# Default scan route (order of shelves to visit)
+scan_route:
+  - shelf_1
+  - shelf_2
+  - shelf_3

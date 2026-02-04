@@ -1,0 +1,29 @@
+# Inventory Scanner Configuration
+
+# Backend API settings
+backend:
+  url: "http://localhost:8000"
+  timeout: 10.0  # seconds
+
+# Navigation settings
+navigation:
+  speed_linear: 0.2   # m/s
+  speed_angular: 0.5  # rad/s
+  goal_tolerance: 0.15  # meters
+  obstacle_distance: 0.3  # meters - stop if obstacle closer than this
+
+# QR Scanner settings
+qr_scanner:
+  timeout: 10.0  # seconds to wait for QR code
+  camera_topic: "/ascamera/camera_publisher/rgb0/image"
+
+# YOLO Detector settings
+yolo_detector:
+  detection_duration: 3.0  # seconds to run detection
+  min_confidence: 0.35
+  device: "cpu"  # or "cuda" if GPU available
+  model: "yolo11n.pt"
+
+# FSM settings
+fsm:
+  heartbeat_timeout: 5.0  # seconds
