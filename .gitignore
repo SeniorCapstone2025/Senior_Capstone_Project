@@ -1,0 +1,14 @@
+model/venv/
+app/venv/
+__pycache__/
+*.pyc
+robot_controller/venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
+*.env.local
+frontend/ros2-rover-dashboard/node_modules
+frontend/ros2-rover-dashboard/.next
