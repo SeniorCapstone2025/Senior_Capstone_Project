@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     status_cache_heartbeat_seconds: int = 300    # 5 minutes in seconds
 
     class Config:
-        env_file = ".env"
+        env_file = "app/.env"
         case_sensitive = False
 
     @property

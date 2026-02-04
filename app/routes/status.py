@@ -34,13 +34,16 @@ async def status():
         battery_threshold=settings.status_cache_battery_threshold,
         heartbeat_seconds=settings.status_cache_heartbeat_seconds
     ):
-        save_status(
-            state=status_data["state"],
-            battery=status_data["battery_level"],
-            current_task=status_data["current_task"],
-        )
-        rover_state.mark_as_saved()
-        logger.info("Status saved to database (change detected or heartbeat)")
+        try:
+            save_status(
+                state=status_data["state"],
+                battery=status_data["battery_level"],
+                current_task=status_data["current_task"],
+            )
+            rover_state.mark_as_saved()
+            logger.info("Status saved to database (change detected or heartbeat)")
+        except Exception as e:
+            logger.warning(f"Failed to save status to database: {e}")
     else:
         logger.debug("Status not saved (no significant changes)")
 

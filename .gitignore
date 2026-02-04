@@ -1,4 +1,5 @@
 model/venv/
+app/venv/
 __pycache__/
 *.pyc
 robot_controller/venv/

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const WS_URL = 'ws://localhost:8001/ws/camera';
+const WS_URL = 'ws://localhost:8000/ws/camera';
 
 export function useCameraStream() {
   const [frame, setFrame] = useState(null);
