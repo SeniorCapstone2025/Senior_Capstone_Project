@@ -36,7 +36,10 @@ async def send_command(data: Command):
     rover_state.update_state(command)
 
     message = valid_commands[command]
-    save_command(command, "OK")
+    try:
+        save_command(command, "OK")
+    except Exception as e:
+        logger.warning(f"Failed to save command to database: {e}")
 
     response = {
         "command": command,
