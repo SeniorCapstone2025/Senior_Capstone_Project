@@ -41,7 +41,7 @@ class RosBridgeClient:
         self._ros.on_ready(lambda: logger.info(f"Connected to rosbridge at {host}:{port}"))
 
         # Run roslibpy in background thread
-        self._ros.run_in_thread()
+        asyncio.create_task(asyncio.to_thread(self._ros.run, 5))
 
         # Wait for connection (up to 5 seconds)
         for _ in range(50):
@@ -113,7 +113,7 @@ class RosBridgeClient:
 
     async def subscribe(self, topic: str, msg_type: str, callback: Callable):
         """Subscribe to ROS2 topic with async callback."""
-        if not self._ros:
+        if not self.is_connected:
             raise ConnectionError("Not connected to rosbridge")
 
         self._callbacks[topic] = callback
