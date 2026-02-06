@@ -4,14 +4,16 @@
 Inventory FSM Node - Main controller for autonomous inventory scanning.
 
 Coordinates the scan process through states:
-IDLE -> NAVIGATE_TO_SHELF -> ALIGN_WITH_SHELF -> SCAN_QR ->
-FETCH_EXPECTED_INVENTORY -> RUN_YOLO_DETECTION -> COMPARE_INVENTORY ->
-SEND_RESULTS_TO_BACKEND -> RETURN_HOME -> IDLE
+IDLE -> NAVIGATE_TO_SHELF -> ALIGN_WITH_SHELF -> FETCH_EXPECTED_INVENTORY ->
+RUN_YOLO_DETECTION -> COMPARE_INVENTORY -> SEND_RESULTS -> RETURN_HOME -> IDLE
+
+Communicates with backend via rosbridge topics (no HTTP).
 """
 
+import json
 import rclpy
 import threading
-import requests
+from datetime import datetime
 from enum import Enum, auto
 from rclpy.node import Node
 from std_msgs.msg import String, Bool
@@ -24,11 +26,10 @@ class ScanState(Enum):
     IDLE = auto()
     NAVIGATE_TO_SHELF = auto()
     ALIGN_WITH_SHELF = auto()
-    SCAN_QR = auto()
     FETCH_EXPECTED_INVENTORY = auto()
     RUN_YOLO_DETECTION = auto()
     COMPARE_INVENTORY = auto()
-    SEND_RESULTS_TO_BACKEND = auto()
+    SEND_RESULTS = auto()
     RETURN_HOME = auto()
     ERROR = auto()
 
@@ -48,27 +49,38 @@ class InventoryFSMNode(Node):
         # Scan data
         self.current_scan_id = None
         self.current_shelf_id = None
-        self.shelf_queue = []  # List of shelves to scan
+        self.shelf_queue = []
         self.expected_items = []
         self.detected_items = []
+        self.missing_items = []
+        self.unexpected_items = []
+        self.match = False
 
-        # Backend config
-        self.declare_parameter('backend_url', 'http://localhost:8000')
-        self.declare_parameter('backend_timeout', 10.0)
-        self.backend_url = self.get_parameter('backend_url').value
-        self.backend_timeout = self.get_parameter('backend_timeout').value
+        # Timeout for waiting on expected inventory
+        self.fetch_timeout_timer = None
 
-        # Publishers
+        # Publishers - Navigation and detection control
         self.waypoint_goal_pub = self.create_publisher(
             String, '/waypoint_navigator/goal', 10)
-        self.qr_trigger_pub = self.create_publisher(
-            Bool, '/qr_scanner/trigger', 10)
         self.yolo_trigger_pub = self.create_publisher(
             Bool, '/yolo_detector/trigger', 10)
 
-        # Subscribers (created on enter)
+        # Publishers - Backend communication via rosbridge
+        self.fsm_status_pub = self.create_publisher(
+            String, '/fsm_status', 10)
+        self.scan_results_pub = self.create_publisher(
+            String, '/scan_results', 10)
+
+        # Subscribers - Backend commands via rosbridge
+        self.scan_start_sub = self.create_subscription(
+            String, '/scan/start',
+            self.scan_start_callback, 10)
+        self.expected_inventory_sub = self.create_subscription(
+            String, '/scan/expected_inventory',
+            self.expected_inventory_callback, 10)
+
+        # Subscribers - Created on enter (robot sensors)
         self.nav_status_sub = None
-        self.qr_code_sub = None
         self.detections_sub = None
 
         # Lifecycle services
@@ -76,8 +88,8 @@ class InventoryFSMNode(Node):
         self.create_service(Trigger, '~/exit', self.exit_srv_callback)
         self.create_service(Trigger, '~/init_finish', self.init_finish_callback)
 
-        # Scan control services
-        self.create_service(Trigger, '~/start_scan', self.start_scan_callback)
+        # Scan control services (still available for direct ROS2 calls)
+        self.create_service(Trigger, '~/start_scan', self.start_scan_srv_callback)
         self.create_service(Trigger, '~/stop_scan', self.stop_scan_callback)
         self.create_service(Trigger, '~/emergency_stop', self.emergency_stop_callback)
 
@@ -85,7 +97,44 @@ class InventoryFSMNode(Node):
         Heart(self, f'{self.name}/heartbeat', 5,
               lambda _: self.exit_srv_callback(Trigger.Request(), Trigger.Response()))
 
+        # Publish initial IDLE status
+        self.publish_fsm_status()
+
         self.get_logger().info('\033[1;32m%s\033[0m' % 'Inventory FSM Node initialized')
+
+    # =========================================================================
+    # FSM Status Publishing
+    # =========================================================================
+
+    def publish_fsm_status(self):
+        """Publish current state for backend subscription."""
+        status = {
+            "state": self.state.name,
+            "scan_id": self.current_scan_id,
+            "shelf_id": self.current_shelf_id,
+            "timestamp": datetime.now().isoformat(),
+            "message": self.get_state_message()
+        }
+
+        msg = String()
+        msg.data = json.dumps(status)
+        self.fsm_status_pub.publish(msg)
+        self.get_logger().debug(f'Published FSM status: {self.state.name}')
+
+    def get_state_message(self) -> str:
+        """Human-readable message for current state."""
+        messages = {
+            ScanState.IDLE: "Ready for commands",
+            ScanState.NAVIGATE_TO_SHELF: f"Navigating to {self.current_shelf_id}",
+            ScanState.ALIGN_WITH_SHELF: "Aligning with shelf",
+            ScanState.FETCH_EXPECTED_INVENTORY: "Waiting for expected inventory",
+            ScanState.RUN_YOLO_DETECTION: "Running object detection",
+            ScanState.COMPARE_INVENTORY: "Comparing inventory",
+            ScanState.SEND_RESULTS: "Sending results",
+            ScanState.RETURN_HOME: "Returning to home position",
+            ScanState.ERROR: "Error occurred",
+        }
+        return messages.get(self.state, "Unknown state")
 
     # =========================================================================
     # Lifecycle Services
@@ -99,16 +148,17 @@ class InventoryFSMNode(Node):
             self.reset_state()
             self.is_active = True
 
-            # Subscribe to topics
+            # Subscribe to robot sensor topics
             self.nav_status_sub = self.create_subscription(
                 String, '/waypoint_navigator/status',
                 self.nav_status_callback, 10)
-            self.qr_code_sub = self.create_subscription(
-                String, '/qr_scanner/qr_code',
-                self.qr_code_callback, 10)
+
+            # Subscribe to YOLO detections
             self.detections_sub = self.create_subscription(
                 String, '/yolo_detector/detections',
                 self.detections_callback, 10)
+
+        self.publish_fsm_status()
 
         response.success = True
         response.message = "enter"
@@ -122,16 +172,21 @@ class InventoryFSMNode(Node):
             self.is_active = False
             self.reset_state()
 
+            # Cancel any pending timers
+            if self.fetch_timeout_timer:
+                self.fetch_timeout_timer.cancel()
+                self.destroy_timer(self.fetch_timeout_timer)
+                self.fetch_timeout_timer = None
+
             # Destroy subscriptions
             if self.nav_status_sub:
                 self.destroy_subscription(self.nav_status_sub)
                 self.nav_status_sub = None
-            if self.qr_code_sub:
-                self.destroy_subscription(self.qr_code_sub)
-                self.qr_code_sub = None
             if self.detections_sub:
                 self.destroy_subscription(self.detections_sub)
                 self.detections_sub = None
+
+        self.publish_fsm_status()
 
         response.success = True
         response.message = "exit"
@@ -147,9 +202,9 @@ class InventoryFSMNode(Node):
     # Scan Control Services
     # =========================================================================
 
-    def start_scan_callback(self, request, response):
-        """Start the inventory scan sequence."""
-        self.get_logger().info('\033[1;32m%s\033[0m' % 'start_scan requested')
+    def start_scan_srv_callback(self, request, response):
+        """Start scan via ROS2 service (legacy support)."""
+        self.get_logger().info('\033[1;32m%s\033[0m' % 'start_scan service called')
 
         with self.lock:
             if not self.is_active:
@@ -162,8 +217,9 @@ class InventoryFSMNode(Node):
                 response.message = f"Cannot start scan. Current state: {self.state.name}"
                 return response
 
-            # TODO: Get shelf list from request or config
-            self.shelf_queue = ['shelf_1']  # Default for testing
+            # Default shelf for service-based start
+            self.shelf_queue = ['shelf_1']
+            self.current_scan_id = f"srv_{datetime.now().strftime('%H%M%S')}"
             self.transition_to(ScanState.NAVIGATE_TO_SHELF)
 
         response.success = True
@@ -175,6 +231,10 @@ class InventoryFSMNode(Node):
         self.get_logger().info('\033[1;32m%s\033[0m' % 'stop_scan requested')
 
         with self.lock:
+            if self.fetch_timeout_timer:
+                self.fetch_timeout_timer.cancel()
+                self.destroy_timer(self.fetch_timeout_timer)
+                self.fetch_timeout_timer = None
             self.transition_to(ScanState.RETURN_HOME)
 
         response.success = True
@@ -186,13 +246,83 @@ class InventoryFSMNode(Node):
         self.get_logger().error('\033[1;31m%s\033[0m' % 'EMERGENCY STOP')
 
         with self.lock:
+            if self.fetch_timeout_timer:
+                self.fetch_timeout_timer.cancel()
+                self.destroy_timer(self.fetch_timeout_timer)
+                self.fetch_timeout_timer = None
+
             self.state = ScanState.IDLE
             self.disable_all_triggers()
-            # TODO: Send stop command to motors
+            self.publish_fsm_status()
 
         response.success = True
         response.message = "Emergency stop executed"
         return response
+
+    # =========================================================================
+    # Backend Command Callbacks (via rosbridge topics)
+    # =========================================================================
+
+    def scan_start_callback(self, msg):
+        """Handle scan start command from backend."""
+        try:
+            data = json.loads(msg.data)
+            scan_id = data.get("scan_id")
+            shelf_ids = data.get("shelf_ids", [])
+
+            self.get_logger().info(f'Scan start received: {scan_id} -> {shelf_ids}')
+
+            with self.lock:
+                if not self.is_active:
+                    self.get_logger().warn('Scan start ignored - node not active')
+                    return
+
+                if self.state != ScanState.IDLE:
+                    self.get_logger().warn(f'Scan start ignored - current state: {self.state.name}')
+                    return
+
+                self.current_scan_id = scan_id
+                self.shelf_queue = list(shelf_ids)
+                self.transition_to(ScanState.NAVIGATE_TO_SHELF)
+
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f'Invalid scan start JSON: {e}')
+
+    def expected_inventory_callback(self, msg):
+        """Handle expected inventory from backend."""
+        try:
+            data = json.loads(msg.data)
+            scan_id = data.get("scan_id")
+            shelf_id = data.get("shelf_id")
+            expected_items = data.get("expected_items", [])
+
+            self.get_logger().info(f'Expected inventory received for {shelf_id}: {expected_items}')
+
+            with self.lock:
+                # Verify this is for our current scan
+                if scan_id != self.current_scan_id:
+                    self.get_logger().warn(f'Ignoring inventory for wrong scan_id: {scan_id}')
+                    return
+
+                if shelf_id != self.current_shelf_id:
+                    self.get_logger().warn(f'Ignoring inventory for wrong shelf_id: {shelf_id}')
+                    return
+
+                if self.state != ScanState.FETCH_EXPECTED_INVENTORY:
+                    self.get_logger().warn(f'Ignoring inventory - wrong state: {self.state.name}')
+                    return
+
+                # Cancel timeout timer
+                if self.fetch_timeout_timer:
+                    self.fetch_timeout_timer.cancel()
+                    self.destroy_timer(self.fetch_timeout_timer)
+                    self.fetch_timeout_timer = None
+
+                self.expected_items = expected_items
+                self.transition_to(ScanState.RUN_YOLO_DETECTION)
+
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f'Invalid expected inventory JSON: {e}')
 
     # =========================================================================
     # State Machine
@@ -204,16 +334,18 @@ class InventoryFSMNode(Node):
         self.state = new_state
         self.get_logger().info(f'State: {old_state.name} -> {new_state.name}')
 
+        # Publish state change to backend
+        self.publish_fsm_status()
+
         # Execute state entry action
         state_handlers = {
             ScanState.IDLE: self.on_enter_idle,
             ScanState.NAVIGATE_TO_SHELF: self.on_enter_navigate_to_shelf,
             ScanState.ALIGN_WITH_SHELF: self.on_enter_align_with_shelf,
-            ScanState.SCAN_QR: self.on_enter_scan_qr,
             ScanState.FETCH_EXPECTED_INVENTORY: self.on_enter_fetch_expected,
             ScanState.RUN_YOLO_DETECTION: self.on_enter_yolo_detection,
             ScanState.COMPARE_INVENTORY: self.on_enter_compare_inventory,
-            ScanState.SEND_RESULTS_TO_BACKEND: self.on_enter_send_results,
+            ScanState.SEND_RESULTS: self.on_enter_send_results,
             ScanState.RETURN_HOME: self.on_enter_return_home,
             ScanState.ERROR: self.on_enter_error,
         }
@@ -250,31 +382,30 @@ class InventoryFSMNode(Node):
         """Entry action for ALIGN_WITH_SHELF state."""
         self.get_logger().info('Aligning with shelf')
         # TODO: Fine positioning logic
-        # For now, skip directly to QR scan
-        self.transition_to(ScanState.SCAN_QR)
-
-    def on_enter_scan_qr(self):
-        """Entry action for SCAN_QR state."""
-        self.get_logger().info('Starting QR scan')
-        msg = Bool()
-        msg.data = True
-        self.qr_trigger_pub.publish(msg)
+        # For now, proceed directly to fetch expected inventory
+        self.transition_to(ScanState.FETCH_EXPECTED_INVENTORY)
 
     def on_enter_fetch_expected(self):
         """Entry action for FETCH_EXPECTED_INVENTORY state."""
-        self.get_logger().info(f'Fetching expected inventory for {self.current_shelf_id}')
+        self.get_logger().info(f'Waiting for expected inventory for {self.current_shelf_id}')
 
-        try:
-            url = f"{self.backend_url}/api/inventory/shelf/{self.current_shelf_id}"
-            resp = requests.get(url, timeout=self.backend_timeout)
-            resp.raise_for_status()
-            data = resp.json()
-            self.expected_items = data.get('expected_items', [])
-            self.get_logger().info(f'Expected items: {self.expected_items}')
-            self.transition_to(ScanState.RUN_YOLO_DETECTION)
-        except Exception as e:
-            self.get_logger().error(f'Failed to fetch inventory: {e}')
-            self.transition_to(ScanState.ERROR)
+        # Backend will see our state via /fsm_status subscription and send inventory
+        # Start timeout timer (10 seconds)
+        self.fetch_timeout_timer = self.create_timer(
+            10.0, self.fetch_timeout_callback)
+
+    def fetch_timeout_callback(self):
+        """Handle timeout waiting for expected inventory."""
+        self.get_logger().error('Timeout waiting for expected inventory from backend')
+
+        if self.fetch_timeout_timer:
+            self.fetch_timeout_timer.cancel()
+            self.destroy_timer(self.fetch_timeout_timer)
+            self.fetch_timeout_timer = None
+
+        with self.lock:
+            if self.state == ScanState.FETCH_EXPECTED_INVENTORY:
+                self.transition_to(ScanState.ERROR)
 
     def on_enter_yolo_detection(self):
         """Entry action for RUN_YOLO_DETECTION state."""
@@ -294,32 +425,34 @@ class InventoryFSMNode(Node):
         self.unexpected_items = list(detected_set - expected_set)
         self.match = (len(self.missing_items) == 0 and len(self.unexpected_items) == 0)
 
+        self.get_logger().info(f'Expected: {self.expected_items}')
+        self.get_logger().info(f'Detected: {self.detected_items}')
         self.get_logger().info(f'Missing: {self.missing_items}')
         self.get_logger().info(f'Unexpected: {self.unexpected_items}')
         self.get_logger().info(f'Match: {self.match}')
 
-        self.transition_to(ScanState.SEND_RESULTS_TO_BACKEND)
+        self.transition_to(ScanState.SEND_RESULTS)
 
     def on_enter_send_results(self):
-        """Entry action for SEND_RESULTS_TO_BACKEND state."""
-        self.get_logger().info('Sending results to backend')
+        """Entry action for SEND_RESULTS state - publish to topic."""
+        self.get_logger().info('Publishing results to backend')
 
-        try:
-            url = f"{self.backend_url}/api/scan/results"
-            payload = {
-                'scan_id': self.current_scan_id,
-                'shelf_id': self.current_shelf_id,
-                'expected_items': self.expected_items,
-                'detected_items': self.detected_items,
-                'missing_items': self.missing_items,
-                'unexpected_items': self.unexpected_items,
-                'match': self.match,
-            }
-            resp = requests.post(url, json=payload, timeout=self.backend_timeout)
-            resp.raise_for_status()
-            self.get_logger().info('Results sent successfully')
-        except Exception as e:
-            self.get_logger().error(f'Failed to send results: {e}')
+        results = {
+            "scan_id": self.current_scan_id,
+            "shelf_id": self.current_shelf_id,
+            "timestamp": datetime.now().isoformat(),
+            "expected_items": self.expected_items,
+            "detected_items": self.detected_items,
+            "missing_items": self.missing_items,
+            "unexpected_items": self.unexpected_items,
+            "match": self.match
+        }
+
+        msg = String()
+        msg.data = json.dumps(results)
+        self.scan_results_pub.publish(msg)
+
+        self.get_logger().info('Results published')
 
         # Check if more shelves to scan
         if self.shelf_queue:
@@ -338,10 +471,9 @@ class InventoryFSMNode(Node):
         """Entry action for ERROR state."""
         self.get_logger().error('Entered ERROR state')
         self.disable_all_triggers()
-        # TODO: Notify dashboard of error
 
     # =========================================================================
-    # Topic Callbacks
+    # Robot Sensor Callbacks
     # =========================================================================
 
     def nav_status_callback(self, msg):
@@ -360,29 +492,10 @@ class InventoryFSMNode(Node):
                 if status == 'reached':
                     self.transition_to(ScanState.IDLE)
 
-    def qr_code_callback(self, msg):
-        """Handle QR code detection."""
-        qr_data = msg.data
-        self.get_logger().info(f'QR detected: {qr_data}')
-
-        with self.lock:
-            if self.state == ScanState.SCAN_QR:
-                # Stop QR scanning
-                trigger_msg = Bool()
-                trigger_msg.data = False
-                self.qr_trigger_pub.publish(trigger_msg)
-
-                # Verify QR matches expected shelf
-                if qr_data == self.current_shelf_id:
-                    self.transition_to(ScanState.FETCH_EXPECTED_INVENTORY)
-                else:
-                    self.get_logger().warn(f'QR mismatch: expected {self.current_shelf_id}, got {qr_data}')
-                    self.current_shelf_id = qr_data  # Use actual QR
-                    self.transition_to(ScanState.FETCH_EXPECTED_INVENTORY)
-
     def detections_callback(self, msg):
-        """Handle YOLO detection results (comma-separated class names)."""
-        self.get_logger().info(f'Detections received: {msg.data}')
+        """Handle YOLO detection results."""
+        # TODO: Parse DetectionArray message
+        self.get_logger().info('Detections received')
 
         with self.lock:
             if self.state == ScanState.RUN_YOLO_DETECTION:
@@ -391,13 +504,10 @@ class InventoryFSMNode(Node):
                 trigger_msg.data = False
                 self.yolo_trigger_pub.publish(trigger_msg)
 
-                # Parse comma-separated class names from yolo_detector_node
-                if msg.data:
-                    self.detected_items = [name.strip() for name in msg.data.split(',') if name.strip()]
-                else:
-                    self.detected_items = []
+                # Extract class names from detections
+                # self.detected_items = [d.class_name for d in msg.detections]
+                self.detected_items = []  # TODO: Parse actual message
 
-                self.get_logger().info(f'Detected items: {self.detected_items}')
                 self.transition_to(ScanState.COMPARE_INVENTORY)
 
     # =========================================================================
@@ -420,7 +530,6 @@ class InventoryFSMNode(Node):
         """Disable all scanner triggers."""
         msg = Bool()
         msg.data = False
-        self.qr_trigger_pub.publish(msg)
         self.yolo_trigger_pub.publish(msg)
 
 

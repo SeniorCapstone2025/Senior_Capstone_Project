@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     status_cache_battery_threshold: float = 5.0  # Percentage change to trigger save
     status_cache_heartbeat_seconds: int = 300    # 5 minutes in seconds
 
+    # Rosbridge Configuration
+    rosbridge_url: str = "ws://localhost:9090"
+    rosbridge_reconnect_interval: int = 5
+    rosbridge_connect_timeout: int = 10
+
     class Config:
         env_file = "app/.env"
         case_sensitive = False

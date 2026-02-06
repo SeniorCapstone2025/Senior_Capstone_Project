@@ -1,7 +1,10 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import commands, status, detections, inventory, camera, websocket_route
 from app.config import get_settings
+from app.rosbridge import rosbridge_client
+from app.ros_handlers import setup_ros_handlers
 import logging
 
 # Configure logging
@@ -13,7 +16,24 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle - connect/disconnect rosbridge."""
+    # Startup
+    logger.info("Starting rosbridge connection...")
+    rosbridge_client.url = settings.rosbridge_url
+    await rosbridge_client.connect()
+    await setup_ros_handlers()
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down rosbridge connection...")
+    await rosbridge_client.disconnect()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 # Configure CORS middleware - temporarily allow all origins for debugging
 app.add_middleware(
