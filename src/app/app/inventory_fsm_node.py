@@ -493,9 +493,8 @@ class InventoryFSMNode(Node):
                     self.transition_to(ScanState.IDLE)
 
     def detections_callback(self, msg):
-        """Handle YOLO detection results."""
-        # TODO: Parse DetectionArray message
-        self.get_logger().info('Detections received')
+        """Handle YOLO detection results (comma-separated class names)."""
+        self.get_logger().info(f'Detections received: {msg.data}')
 
         with self.lock:
             if self.state == ScanState.RUN_YOLO_DETECTION:
@@ -504,10 +503,13 @@ class InventoryFSMNode(Node):
                 trigger_msg.data = False
                 self.yolo_trigger_pub.publish(trigger_msg)
 
-                # Extract class names from detections
-                # self.detected_items = [d.class_name for d in msg.detections]
-                self.detected_items = []  # TODO: Parse actual message
+                # Parse comma-separated class names from yolo_detector_node
+                if msg.data:
+                    self.detected_items = [name.strip() for name in msg.data.split(',') if name.strip()]
+                else:
+                    self.detected_items = []
 
+                self.get_logger().info(f'Detected items: {self.detected_items}')
                 self.transition_to(ScanState.COMPARE_INVENTORY)
 
     # =========================================================================
