@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Power,
   Pause,
@@ -13,13 +14,15 @@ import {
   CheckCircle,
   Activity,
   Settings,
-  Folder
+  Database
 } from 'lucide-react';
 import { useRoverStatus } from '../hooks/useRoverStatus';
 import { useRoverCommands } from '../hooks/useRoverCommands';
 import CameraFeed from './CameraFeed';
 
 export default function RoverDashboard() {
+  const router = useRouter();
+  
   // Use real API hooks
   const { status, loading: statusLoading, error: statusError } = useRoverStatus(2000);
   const { sendCommand, loading: commandLoading, error: commandError } = useRoverCommands();
@@ -79,8 +82,11 @@ export default function RoverDashboard() {
       {/* Left Sidebar */}
       <div className="w-24 bg-gray-900 flex flex-col items-center py-6 space-y-4 border-r border-gray-800">
         <div className="mb-8">
-          <div className="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center text-xs text-gray-400 font-bold">
-            YOUR<br/>LOGO
+          <div className="w-16 h-16 bg-gradient-to-br from-red-600 to-orange-600 rounded-lg flex items-center justify-center text-xs text-white font-black shadow-lg shadow-red-900/50">
+            <div className="text-center leading-tight">
+              <div className="text-[10px] tracking-wider">M.A.R.S.</div>
+              <div className="text-[6px] text-red-100 mt-0.5">ROVER</div>
+            </div>
           </div>
         </div>
 
@@ -124,8 +130,12 @@ export default function RoverDashboard() {
             <Settings size={24} />
           </button>
           
-          <button className="w-16 h-16 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center transition-all mx-auto">
-            <Folder size={24} />
+          <button 
+            onClick={() => router.push('/backend')}
+            className="w-16 h-16 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center transition-all mx-auto"
+            title="Backend Info"
+          >
+            <Database size={24} />
           </button>
         </div>
       </div>
@@ -133,9 +143,18 @@ export default function RoverDashboard() {
       {/* Main Content */}
       <div className="flex-1 p-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">ROS 2 Rover Control Center</h1>
-          <p className="text-gray-500">Inventory Scanning & Logging System</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-white mb-2">M.A.R.S. Control Center</h1>
+            <p className="text-gray-500">Mobile Autonomous Rover System - Inventory Scanning & Logging</p>
+          </div>
+          <button
+            onClick={() => router.push('/backend')}
+            className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-all border border-gray-700"
+          >
+            <Database size={20} />
+            <span>Backend Monitor</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-12 gap-6">
