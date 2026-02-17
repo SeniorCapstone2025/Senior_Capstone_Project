@@ -83,6 +83,16 @@ class InventoryFSMNode(Node):
         self.nav_status_sub = None
         self.detections_sub = None
 
+        # Service clients for entering/exiting dependent nodes
+        self.waypoint_enter_client = self.create_client(
+            Trigger, '/waypoint_navigator/enter')
+        self.waypoint_exit_client = self.create_client(
+            Trigger, '/waypoint_navigator/exit')
+        self.yolo_enter_client = self.create_client(
+            Trigger, '/yolo_detector/enter')
+        self.yolo_exit_client = self.create_client(
+            Trigger, '/yolo_detector/exit')
+
         # Lifecycle services
         self.create_service(Trigger, '~/enter', self.enter_srv_callback)
         self.create_service(Trigger, '~/exit', self.exit_srv_callback)
@@ -220,6 +230,10 @@ class InventoryFSMNode(Node):
             # Default shelf for service-based start
             self.shelf_queue = ['shelf_1']
             self.current_scan_id = f"srv_{datetime.now().strftime('%H%M%S')}"
+
+            # Activate dependent nodes before starting scan
+            self.activate_dependent_nodes()
+
             self.transition_to(ScanState.NAVIGATE_TO_SHELF)
 
         response.success = True
@@ -252,7 +266,7 @@ class InventoryFSMNode(Node):
                 self.fetch_timeout_timer = None
 
             self.state = ScanState.IDLE
-            self.disable_all_triggers()
+            self.deactivate_dependent_nodes()
             self.publish_fsm_status()
 
         response.success = True
@@ -283,6 +297,10 @@ class InventoryFSMNode(Node):
 
                 self.current_scan_id = scan_id
                 self.shelf_queue = list(shelf_ids)
+
+                # Activate dependent nodes before starting scan
+                self.activate_dependent_nodes()
+
                 self.transition_to(ScanState.NAVIGATE_TO_SHELF)
 
         except json.JSONDecodeError as e:
@@ -361,7 +379,7 @@ class InventoryFSMNode(Node):
     def on_enter_idle(self):
         """Entry action for IDLE state."""
         self.get_logger().info('Entered IDLE state')
-        self.disable_all_triggers()
+        self.deactivate_dependent_nodes()
 
     def on_enter_navigate_to_shelf(self):
         """Entry action for NAVIGATE_TO_SHELF state."""
@@ -470,7 +488,7 @@ class InventoryFSMNode(Node):
     def on_enter_error(self):
         """Entry action for ERROR state."""
         self.get_logger().error('Entered ERROR state')
-        self.disable_all_triggers()
+        self.deactivate_dependent_nodes()
 
     # =========================================================================
     # Robot Sensor Callbacks
@@ -493,9 +511,8 @@ class InventoryFSMNode(Node):
                     self.transition_to(ScanState.IDLE)
 
     def detections_callback(self, msg):
-        """Handle YOLO detection results."""
-        # TODO: Parse DetectionArray message
-        self.get_logger().info('Detections received')
+        """Handle YOLO detection results (comma-separated class names)."""
+        self.get_logger().info(f'Detections received: {msg.data}')
 
         with self.lock:
             if self.state == ScanState.RUN_YOLO_DETECTION:
@@ -504,10 +521,13 @@ class InventoryFSMNode(Node):
                 trigger_msg.data = False
                 self.yolo_trigger_pub.publish(trigger_msg)
 
-                # Extract class names from detections
-                # self.detected_items = [d.class_name for d in msg.detections]
-                self.detected_items = []  # TODO: Parse actual message
+                # Parse comma-separated class names from yolo_detector_node
+                if msg.data:
+                    self.detected_items = [name.strip() for name in msg.data.split(',') if name.strip()]
+                else:
+                    self.detected_items = []
 
+                self.get_logger().info(f'Detected items: {self.detected_items}')
                 self.transition_to(ScanState.COMPARE_INVENTORY)
 
     # =========================================================================
@@ -531,6 +551,41 @@ class InventoryFSMNode(Node):
         msg = Bool()
         msg.data = False
         self.yolo_trigger_pub.publish(msg)
+
+    def activate_dependent_nodes(self):
+        """Enter waypoint_navigator and yolo_detector nodes."""
+        self.get_logger().info('Activating dependent nodes...')
+        self._call_trigger_service(self.waypoint_enter_client, 'waypoint_navigator/enter')
+        self._call_trigger_service(self.yolo_enter_client, 'yolo_detector/enter')
+
+    def deactivate_dependent_nodes(self):
+        """Exit waypoint_navigator and yolo_detector nodes."""
+        self.get_logger().info('Deactivating dependent nodes...')
+        self.disable_all_triggers()
+        self._call_trigger_service(self.waypoint_exit_client, 'waypoint_navigator/exit')
+        self._call_trigger_service(self.yolo_exit_client, 'yolo_detector/exit')
+
+    def _call_trigger_service(self, client, name: str):
+        """Call a Trigger service asynchronously."""
+        if not client.service_is_ready():
+            self.get_logger().warn(f'Service {name} not available, skipping')
+            return
+        request = Trigger.Request()
+        future = client.call_async(request)
+        future.add_done_callback(
+            lambda f: self._service_done_callback(f, name)
+        )
+
+    def _service_done_callback(self, future, name: str):
+        """Handle service call result."""
+        try:
+            result = future.result()
+            if result.success:
+                self.get_logger().info(f'{name}: {result.message}')
+            else:
+                self.get_logger().warn(f'{name} failed: {result.message}')
+        except Exception as e:
+            self.get_logger().error(f'{name} service error: {e}')
 
 
 def main():

@@ -12,3 +12,6 @@ __pycache__/
 *.env.local
 frontend/ros2-rover-dashboard/node_modules
 frontend/ros2-rover-dashboard/.next
+build/
+install/
+log/
