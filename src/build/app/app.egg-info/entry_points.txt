@@ -2,6 +2,11 @@
 ar_app = app.ar_app:main
 hand_gesture = app.hand_gesture:main
 hand_trajectory = app.hand_trajectory_node:main
+inventory_fsm_node = app.inventory_fsm_node:main
 lidar_controller = app.lidar_controller:main
 line_following = app.line_following:main
 object_tracking = app.object_tracking:main
+qr_scanner_node = app.qr_scanner_node:main
+waypoint_navigator_node = app.waypoint_navigator_node:main
+yolo_detector_node = app.yolo_detector_node:main
+
