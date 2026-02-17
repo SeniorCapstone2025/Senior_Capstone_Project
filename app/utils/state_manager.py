@@ -1,5 +1,8 @@
 """
-Simple in-memory state manager for rover status
+Simple in-memory state manager for rover status.
+
+Tracks both simple state (for backwards compatibility) and
+detailed FSM state from ROS2 subscriptions.
 """
 from datetime import datetime
 from typing import Optional
@@ -11,6 +14,11 @@ class RoverStateManager:
         self._battery_level = 83.0
         self._current_task: Optional[str] = None
         self._last_update = datetime.now()
+
+        # FSM state (from /fsm_status subscription)
+        self._fsm_state = "IDLE"
+        self._fsm_scan_id: Optional[str] = None
+        self._fsm_shelf_id: Optional[str] = None
 
         # Caching attributes for tracking last saved state
         self._last_saved_state: Optional[str] = None
@@ -58,10 +66,64 @@ class RoverStateManager:
     def get_status_dict(self) -> dict:
         return {
             "state": self._state,
+            "fsm_state": self._fsm_state,
+            "scan_id": self._fsm_scan_id,
+            "shelf_id": self._fsm_shelf_id,
             "battery_level": self._battery_level,
             "current_task": self._current_task,
             "last_update": self._last_update.isoformat()
         }
+
+    # =========================================================================
+    # FSM State (from ROS2 subscriptions - single source of truth)
+    # =========================================================================
+
+    def set_fsm_state(self, state: str, scan_id: str = None, shelf_id: str = None):
+        """Update state from FSM subscription (single source of truth)."""
+        self._fsm_state = state
+        self._fsm_scan_id = scan_id
+        self._fsm_shelf_id = shelf_id
+        self._last_update = datetime.now()
+
+        # Map FSM state to simple state for backwards compatibility
+        fsm_to_simple = {
+            "IDLE": "idle",
+            "NAVIGATE_TO_SHELF": "navigating",
+            "ALIGN_WITH_SHELF": "navigating",
+            "FETCH_EXPECTED_INVENTORY": "scanning",
+            "RUN_YOLO_DETECTION": "scanning",
+            "COMPARE_INVENTORY": "scanning",
+            "SEND_RESULTS": "scanning",
+            "RETURN_HOME": "returning",
+            "ERROR": "error",
+        }
+        self._state = fsm_to_simple.get(state, "idle")
+
+        # Update current task based on state
+        task_descriptions = {
+            "IDLE": None,
+            "NAVIGATE_TO_SHELF": f"Navigating to {shelf_id}" if shelf_id else "Navigating",
+            "ALIGN_WITH_SHELF": "Aligning with shelf",
+            "FETCH_EXPECTED_INVENTORY": "Fetching inventory data",
+            "RUN_YOLO_DETECTION": "Detecting objects",
+            "COMPARE_INVENTORY": "Comparing inventory",
+            "SEND_RESULTS": "Sending results",
+            "RETURN_HOME": "Returning to home",
+            "ERROR": "Error occurred",
+        }
+        self._current_task = task_descriptions.get(state)
+
+    def get_fsm_state(self) -> str:
+        """Get current FSM state."""
+        return self._fsm_state
+
+    def get_scan_id(self) -> Optional[str]:
+        """Get current scan ID."""
+        return self._fsm_scan_id
+
+    def get_shelf_id(self) -> Optional[str]:
+        """Get current shelf ID."""
+        return self._fsm_shelf_id
 
     def should_save_to_database(self, battery_threshold: float = 5.0, heartbeat_seconds: int = 300) -> bool:
         """

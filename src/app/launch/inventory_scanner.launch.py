@@ -25,7 +25,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'backend_url': 'http://localhost:8000',
-            'backend_timeout': 10.0,
+            'backend_timeout': 15.0,
         }]
     )
 
