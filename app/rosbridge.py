@@ -114,7 +114,8 @@ class RosBridgeClient:
     async def subscribe(self, topic: str, msg_type: str, callback: Callable):
         """Subscribe to ROS2 topic with async callback."""
         if not self.is_connected:
-            raise ConnectionError("Not connected to rosbridge")
+            logger.warning(f'Cannot subscribe to {topic}: not connected to rosbridge')
+            return
 
         self._callbacks[topic] = callback
 
@@ -139,7 +140,8 @@ class RosBridgeClient:
     async def publish(self, topic: str, msg_type: str, msg: dict):
         """Publish message to ROS2 topic."""
         if not self._ros or not self._ros.is_connected:
-            raise ConnectionError("Not connected to rosbridge")
+            logger.warning(f'Cannot publish to {topic}: not connected to rosbridge')
+            return
 
         if topic not in self._publishers:
             publisher = roslibpy.Topic(self._ros, topic, msg_type)
@@ -156,7 +158,8 @@ class RosBridgeClient:
     ) -> dict:
         """Call ROS2 service and wait for response."""
         if not self._ros or not self._ros.is_connected:
-            raise ConnectionError("Not connected to rosbridge")
+            logger.warning(f'Cannot call service {service}: not connected to rosbridge')
+            return
 
         srv = roslibpy.Service(self._ros, service, service_type)
         request = roslibpy.ServiceRequest(args or {})
