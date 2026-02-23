@@ -30,7 +30,7 @@ class YoloDetectorNode(Node):
 
         # Parameters
         self.declare_parameter('detection_duration', 3.0)
-        self.declare_parameter('min_confidence', 0.5)
+        self.declare_parameter('min_confidence', 0.30)
         self.detection_duration = self.get_parameter('detection_duration').value
         self.min_confidence = self.get_parameter('min_confidence').value
 

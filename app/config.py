@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     status_cache_heartbeat_seconds: int = 300    # 5 minutes in seconds
 
     # Rosbridge Configuration
-    rosbridge_url: str = "ws://localhost:9090"
+    rosbridge_url: str = "ws://172.20.10.2:9090"
     rosbridge_reconnect_interval: int = 5
     rosbridge_connect_timeout: int = 10
 
