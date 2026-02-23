@@ -1,3 +1,4 @@
+import time
 from supabase import create_client, Client
 from app.config import get_settings
 from typing import Optional
@@ -22,14 +23,44 @@ def get_supabase_client() -> Client:
     return _supabase_client
 
 
+def _reset_client():
+    """Reset client so next call creates a fresh connection."""
+    global _supabase_client
+    _supabase_client = None
+    logger.info("Supabase client reset")
+
+
+def _with_retry(func, max_retries=2, delay=1.0):
+    """Execute a database function with retry on network errors."""
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            is_network_error = any(s in error_str for s in [
+                "getaddrinfo", "disconnected", "connection",
+                "timeout", "reset by peer", "broken pipe"
+            ])
+            if is_network_error and attempt < max_retries:
+                logger.warning(f"Network error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                _reset_client()
+                time.sleep(delay)
+            else:
+                raise last_error
+
+
 def save_command(command: str, status: str):
     """Save command log to Supabase"""
-    try:
+    def _do():
         client = get_supabase_client()
         data = {"command": command, "status": status}
         result = client.table("command_logs").insert(data).execute()
         logger.info(f"Command saved: {command} - {status}")
         return result
+    try:
+        return _with_retry(_do)
     except Exception as e:
         logger.error(f"Error saving command: {e}")
         raise
@@ -37,7 +68,7 @@ def save_command(command: str, status: str):
 
 def save_status(state: str, battery: float, current_task: Optional[str]):
     """Save status log to Supabase"""
-    try:
+    def _do():
         client = get_supabase_client()
         data = {
             "state": state,
@@ -47,6 +78,8 @@ def save_status(state: str, battery: float, current_task: Optional[str]):
         result = client.table("status_logs").insert(data).execute()
         logger.info(f"Status saved: {state} - Battery: {battery}%")
         return result
+    try:
+        return _with_retry(_do)
     except Exception as e:
         logger.error(f"Error saving status: {e}")
         raise
@@ -144,7 +177,7 @@ def create_scan(scan_id: str, shelf_ids: list) -> dict:
     Returns:
         Created scan record
     """
-    try:
+    def _do():
         client = get_supabase_client()
         result = client.table("scans").insert({
             "scan_id": scan_id,
@@ -153,6 +186,8 @@ def create_scan(scan_id: str, shelf_ids: list) -> dict:
         }).execute()
         logger.info(f"Scan created: {scan_id} for shelves {shelf_ids}")
         return result.data[0] if result.data else None
+    try:
+        return _with_retry(_do)
     except Exception as e:
         logger.error(f"Error creating scan {scan_id}: {e}")
         raise
@@ -166,11 +201,10 @@ def update_scan_status(scan_id: str, status: str):
         scan_id: Scan identifier
         status: New status (pending, in_progress, completed, failed)
     """
-    try:
+    def _do():
         client = get_supabase_client()
         update_data = {"status": status}
 
-        # Set completed_at timestamp when scan finishes
         if status in ("completed", "failed"):
             from datetime import datetime
             update_data["completed_at"] = datetime.now().isoformat()
@@ -181,6 +215,8 @@ def update_scan_status(scan_id: str, status: str):
             .execute()
         logger.info(f"Scan {scan_id} status updated to {status}")
         return result
+    try:
+        return _with_retry(_do)
     except Exception as e:
         logger.error(f"Error updating scan {scan_id} status: {e}")
         raise
@@ -243,7 +279,7 @@ def save_scan_results(data: dict):
         data: Dict with scan_id, shelf_id, expected_items, detected_items,
               missing_items, unexpected_items, match
     """
-    try:
+    def _do():
         client = get_supabase_client()
         result = client.table("scan_results").insert({
             "scan_id": data.get("scan_id"),
@@ -256,6 +292,8 @@ def save_scan_results(data: dict):
         }).execute()
         logger.info(f"Scan results saved: {data.get('scan_id')} / {data.get('shelf_id')}")
         return result
+    try:
+        return _with_retry(_do)
     except Exception as e:
         logger.error(f"Error saving scan results: {e}")
         raise

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List
+import asyncio
 import uuid
 import logging
 
@@ -41,16 +42,15 @@ async def send_command(data: Command):
     if rosbridge_client.is_connected:
         try:
             if command == "start":
-                # Generate scan ID and create database record
+                # Generate scan ID and fire DB write in background (non-blocking)
                 scan_id = f"scan_{uuid.uuid4().hex[:8]}"
                 shelf_ids = data.shelf_ids or ["shelf_1"]
 
-                try:
-                    create_scan(scan_id, shelf_ids)
-                except Exception as e:
-                    logger.warning(f"Failed to create scan record: {e}")
+                asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _safe_create_scan(scan_id, shelf_ids)
+                )
 
-                # Publish to ROS2
+                # Publish to ROS2 immediately
                 await start_scan(scan_id, shelf_ids)
                 ros_result = {"sent": True, "scan_id": scan_id, "shelf_ids": shelf_ids}
 
@@ -82,11 +82,11 @@ async def send_command(data: Command):
     else:
         ros_result = {"sent": False, "error": "rosbridge not connected"}
 
-    # Save command to log
-    try:
-        save_command(command, "OK" if ros_result.get("sent") else "FAILED")
-    except Exception as e:
-        logger.warning(f"Failed to save command: {e}")
+    # Save command to log in background (non-blocking)
+    cmd_status = "OK" if ros_result.get("sent") else "FAILED"
+    asyncio.get_event_loop().run_in_executor(
+        None, lambda: _safe_save_command(command, cmd_status)
+    )
 
     return {
         "command": command,
@@ -95,3 +95,19 @@ async def send_command(data: Command):
         "ros_result": ros_result,
         "rosbridge_connected": rosbridge_client.is_connected
     }
+
+
+def _safe_create_scan(scan_id: str, shelf_ids: list):
+    """Background wrapper — never raises."""
+    try:
+        create_scan(scan_id, shelf_ids)
+    except Exception as e:
+        logger.warning(f"Failed to create scan record: {e}")
+
+
+def _safe_save_command(command: str, status: str):
+    """Background wrapper — never raises."""
+    try:
+        save_command(command, status)
+    except Exception as e:
+        logger.warning(f"Failed to save command: {e}")

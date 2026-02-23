@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from datetime import datetime
+import asyncio
 import logging
 
 from app.database import save_status
@@ -18,21 +19,27 @@ async def status():
     status_data["rosbridge_connected"] = rosbridge_client.is_connected
     status_data["last_update"] = datetime.now().isoformat()
 
-    # Only save if state has changed significantly or heartbeat elapsed
+    # Save in background if state has changed (non-blocking)
     settings = get_settings()
     if rover_state.should_save_to_database(
         battery_threshold=settings.status_cache_battery_threshold,
         heartbeat_seconds=settings.status_cache_heartbeat_seconds
     ):
-        try:
-            save_status(
-                state=status_data["state"],
-                battery=status_data["battery_level"],
-                current_task=status_data.get("current_task"),
-            )
-            rover_state.mark_as_saved()
-            logger.info("Status saved to database")
-        except Exception as e:
-            logger.warning(f"Failed to save status to database: {e}")
+        rover_state.mark_as_saved()
+        state = status_data["state"]
+        battery = status_data["battery_level"]
+        task = status_data.get("current_task")
+        asyncio.get_event_loop().run_in_executor(
+            None, lambda: _safe_save_status(state, battery, task)
+        )
 
     return status_data
+
+
+def _safe_save_status(state, battery, task):
+    """Background wrapper — never raises."""
+    try:
+        save_status(state=state, battery=battery, current_task=task)
+        logger.info("Status saved to database")
+    except Exception as e:
+        logger.warning(f"Failed to save status to database: {e}")
