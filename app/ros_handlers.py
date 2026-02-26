@@ -7,6 +7,7 @@ Handles subscriptions from FSM and publishes commands/data to FSM.
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime
 
 from app.rosbridge import rosbridge_client
@@ -133,6 +134,41 @@ async def setup_ros_handlers():
         "/waypoint_navigator/status",
         "std_msgs/msg/String",
         on_nav_status
+    )
+
+    # =========================================================================
+    # /yolov11_ros2/object_detect — Live YOLO bounding boxes (SUBSCRIBE)
+    # =========================================================================
+
+    _last_detection_broadcast = 0.0  # throttle timestamp
+
+    async def on_yolo_detections(msg):
+        nonlocal _last_detection_broadcast
+        now = time.time()
+        if now - _last_detection_broadcast < 0.1:  # 100ms throttle
+            return
+        _last_detection_broadcast = now
+
+        objects = msg.get("objects", [])
+        detections = []
+        for obj in objects:
+            detections.append({
+                "class_name": obj.get("class_name", ""),
+                "box": obj.get("box", []),
+                "score": obj.get("score", 0.0),
+                "width": obj.get("width", 0),
+                "height": obj.get("height", 0),
+            })
+
+        await manager.broadcast({
+            "type": "yolo_detections",
+            "detections": detections
+        })
+
+    await rosbridge_client.subscribe(
+        "/yolov11_ros2/object_detect",
+        "interfaces/msg/ObjectsInfo",
+        on_yolo_detections
     )
 
     logger.info("ROS2 handlers registered")

@@ -39,10 +39,17 @@ class WaypointNavigatorNode(Node):
         self.declare_parameter('obstacle_distance', 0.3)
         self.declare_parameter('waypoints_file', '')
 
+        # Rover dimensions (metres) — used to offset navigation from centre to front
+        self.declare_parameter('wheelbase_length', 0.1365)   # 5.375 in front-to-back
+        self.declare_parameter('track_width', 0.1334)        # 5.25 in left-to-right
+
         self.speed_linear = self.get_parameter('speed_linear').value
         self.speed_angular = self.get_parameter('speed_angular').value
         self.goal_tolerance = self.get_parameter('goal_tolerance').value
         self.obstacle_distance = self.get_parameter('obstacle_distance').value
+        self.wheelbase_length = self.get_parameter('wheelbase_length').value
+        self.track_width = self.get_parameter('track_width').value
+        self.front_offset = self.wheelbase_length / 2.0  # centre → front of rover
 
         # Load waypoints
         self.waypoints = {}
@@ -61,6 +68,7 @@ class WaypointNavigatorNode(Node):
         self.current_goal = None
         self.current_pose = {'x': 0.0, 'y': 0.0, 'theta': 0.0}
         self.is_navigating = False
+        self.is_aligning = False   # final-orientation phase
         self.is_blocked = False
 
         # Publishers
@@ -107,6 +115,7 @@ class WaypointNavigatorNode(Node):
         with self.lock:
             self.is_active = True
             self.is_navigating = False
+            self.is_aligning = False
 
             # Subscribe to goal commands
             self.goal_sub = self.create_subscription(
@@ -138,6 +147,7 @@ class WaypointNavigatorNode(Node):
         with self.lock:
             self.is_active = False
             self.is_navigating = False
+            self.is_aligning = False
             self.stop_robot()
 
             # Destroy timer
@@ -185,6 +195,7 @@ class WaypointNavigatorNode(Node):
             self.current_goal = self.waypoints[waypoint_id]
             self.is_navigating = True
             self.is_blocked = False
+            self.is_aligning = False
             self.publish_status('navigating')
 
     def lidar_callback(self, msg):
@@ -244,19 +255,50 @@ class WaypointNavigatorNode(Node):
                 self.publish_status('blocked')
                 return
 
-            # Calculate distance and angle to goal
-            dx = self.current_goal['x'] - self.current_pose['x']
-            dy = self.current_goal['y'] - self.current_pose['y']
-            distance = math.sqrt(dx*dx + dy*dy)
-            angle_to_goal = math.atan2(dy, dx)
-            angle_error = self.normalize_angle(angle_to_goal - self.current_pose['theta'])
+            # --- Phase 2: final orientation alignment ---
+            if self.is_aligning:
+                target_theta = self.current_goal.get('theta')
+                if target_theta is None:
+                    # No desired orientation — done
+                    self.stop_robot()
+                    self.is_navigating = False
+                    self.is_aligning = False
+                    self.publish_status('reached')
+                    return
 
-            # Check if reached
+                heading_error = self.normalize_angle(target_theta - self.current_pose['theta'])
+
+                if abs(heading_error) < math.radians(3):
+                    self.stop_robot()
+                    self.is_navigating = False
+                    self.is_aligning = False
+                    self.get_logger().info('Goal reached and aligned!')
+                    self.publish_status('reached')
+                    return
+
+                twist = Twist()
+                twist.angular.z = self.speed_angular if heading_error > 0 else -self.speed_angular
+                self.cmd_vel_pub.publish(twist)
+                return
+
+            # --- Phase 1: drive to goal position ---
+            # Compute the position of the rover's front (camera) from odom centre
+            theta = self.current_pose['theta']
+            front_x = self.current_pose['x'] + self.front_offset * math.cos(theta)
+            front_y = self.current_pose['y'] + self.front_offset * math.sin(theta)
+
+            # Distance and angle measured from the front of the rover
+            dx = self.current_goal['x'] - front_x
+            dy = self.current_goal['y'] - front_y
+            distance = math.sqrt(dx * dx + dy * dy)
+            angle_to_goal = math.atan2(dy, dx)
+            angle_error = self.normalize_angle(angle_to_goal - theta)
+
+            # Position reached — switch to alignment phase
             if distance < self.goal_tolerance:
-                self.stop_robot()
-                self.is_navigating = False
-                self.get_logger().info('Goal reached!')
-                self.publish_status('reached')
+                self.get_logger().info('Position reached, aligning to target heading')
+                self.is_aligning = True
+                self.publish_status('aligning')
                 return
 
             # Generate velocity command
