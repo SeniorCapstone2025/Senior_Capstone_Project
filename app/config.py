@@ -6,9 +6,12 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
-    # Supabase Configuration
-    supabase_url: str
-    supabase_service_key: str
+    # Supabase Configuration (optional — kept for backwards compat)
+    supabase_url: str = ""
+    supabase_service_key: str = ""
+
+    # Local SQLite database path
+    db_path: str = "app/rover.db"
 
     # Application Settings
     app_name: str = "ROS2 Rover Control"
@@ -25,7 +28,7 @@ class Settings(BaseSettings):
     status_cache_heartbeat_seconds: int = 300    # 5 minutes in seconds
 
     # Rosbridge Configuration
-    rosbridge_url: str = "ws://localhost:9090"
+    rosbridge_url: str = "ws://192.168.149.1:9090"
     rosbridge_reconnect_interval: int = 5
     rosbridge_connect_timeout: int = 10
 

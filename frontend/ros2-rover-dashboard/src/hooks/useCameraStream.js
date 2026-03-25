@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const WS_URL = 'ws://localhost:8000/ws/camera';
+const API_HOST = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const WS_URL = API_HOST.replace(/^http/, 'ws') + '/ws/camera';
 
 export function useCameraStream() {
   const [frame, setFrame] = useState(null);
   const [detections, setDetections] = useState([]);
+  const [liveDetections, setLiveDetections] = useState([]);
+  const [fsmState, setFsmState] = useState('IDLE');
+  const [fsmShelfId, setFsmShelfId] = useState(null);
   const [connected, setConnected] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(null);
@@ -78,13 +82,22 @@ export function useCameraStream() {
               }
               break;
 
+            case 'yolo_detections':
+              setLiveDetections(data.detections || []);
+              break;
+
+            case 'fsm_status':
+              setFsmState(data.state || 'IDLE');
+              setFsmShelfId(data.shelf_id || null);
+              break;
+
             case 'error':
               console.error('WebSocket error message:', data.message);
               setError(data.message);
               break;
 
             default:
-              console.log('Unknown message type:', data.type);
+              break;
           }
         } catch (err) {
           console.error('Error parsing WebSocket message:', err);
@@ -177,6 +190,9 @@ export function useCameraStream() {
   return {
     frame,
     detections,
+    liveDetections,
+    fsmState,
+    fsmShelfId,
     connected,
     streaming,
     error,

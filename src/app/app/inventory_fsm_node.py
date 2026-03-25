@@ -352,10 +352,7 @@ class InventoryFSMNode(Node):
         self.state = new_state
         self.get_logger().info(f'State: {old_state.name} -> {new_state.name}')
 
-        # Publish state change to backend
-        self.publish_fsm_status()
-
-        # Execute state entry action
+        # Execute state entry action FIRST so fields like shelf_id are set
         state_handlers = {
             ScanState.IDLE: self.on_enter_idle,
             ScanState.NAVIGATE_TO_SHELF: self.on_enter_navigate_to_shelf,
@@ -371,6 +368,12 @@ class InventoryFSMNode(Node):
         handler = state_handlers.get(new_state)
         if handler:
             handler()
+
+        # Publish AFTER entry handler so shelf_id, scan_id, etc. are populated.
+        # Only publish if the handler didn't already trigger another transition
+        # (e.g. ALIGN_WITH_SHELF immediately transitions to FETCH_EXPECTED_INVENTORY).
+        if self.state == new_state:
+            self.publish_fsm_status()
 
     # =========================================================================
     # State Entry Handlers
@@ -436,12 +439,12 @@ class InventoryFSMNode(Node):
         """Entry action for COMPARE_INVENTORY state."""
         self.get_logger().info('Comparing inventory')
 
-        expected_set = set(self.expected_items)
-        detected_set = set(self.detected_items)
+        expected_set = set([x.lower() for x in self.expected_items])
+        detected_set = set([x.lower() for x in self.detected_items])
 
         self.missing_items = list(expected_set - detected_set)
         self.unexpected_items = list(detected_set - expected_set)
-        self.match = (len(self.missing_items) == 0 and len(self.unexpected_items) == 0)
+        self.match = expected_set == detected_set
 
         self.get_logger().info(f'Expected: {self.expected_items}')
         self.get_logger().info(f'Detected: {self.detected_items}')

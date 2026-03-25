@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class RosBridgeClient:
     """roslibpy-based client for rosbridge communication."""
 
-    def __init__(self, url: str = "ws://localhost:9090"):
+    def __init__(self, url: str = "ws://172.20.10.2:9090"):
         self.url = url
         self._ros: Optional[roslibpy.Ros] = None
         self._publishers: Dict[str, roslibpy.Topic] = {}

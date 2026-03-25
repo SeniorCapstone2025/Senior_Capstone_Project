@@ -1,5 +1,6 @@
 # Waypoints for inventory scanning navigation
-# Coordinates are in meters relative to the map origin
+# 5ft x 5ft (1.524m x 1.524m) square track
+# Home is center (0,0), shelves at each corner facing inward
 # theta is orientation in radians
 
 waypoints:
@@ -9,22 +10,28 @@ waypoints:
     theta: 0.0
 
   shelf_1:
-    x: 1.0
-    y: 0.0
-    theta: 1.57  # facing the shelf (90 degrees)
+    x: -0.76
+    y: -0.76
+    theta: 0.785  # 45 deg - facing center
 
   shelf_2:
-    x: 2.0
-    y: 0.0
-    theta: 1.57
+    x: -0.76
+    y: 0.76
+    theta: -0.785  # -45 deg - facing center
 
   shelf_3:
-    x: 3.0
-    y: 0.0
-    theta: 1.57
+    x: 0.76
+    y: 0.76
+    theta: -2.356  # -135 deg - facing center
+
+  shelf_4:
+    x: 0.76
+    y: -0.76
+    theta: 2.356  # 135 deg - facing center
 
 # Default scan route (order of shelves to visit)
 scan_route:
   - shelf_1
   - shelf_2
   - shelf_3
+  - shelf_4

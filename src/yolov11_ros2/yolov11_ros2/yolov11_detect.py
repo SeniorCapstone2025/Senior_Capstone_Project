@@ -42,7 +42,7 @@ class YoloV11Ros2(Node):
         self.declare_parameter("image_topic", "/ascamera/camera_publisher/rgb0/image", ParameterDescriptor(
             name="image_topic", description="Image topic to subscribe to"))
 
-        self.declare_parameter("confidence", 0.35, ParameterDescriptor(
+        self.declare_parameter("confidence", 0.30, ParameterDescriptor(
             name="confidence", description="Minimum confidence threshold (0.0-1.0)"))
 
         self.declare_parameter("show_result", False, ParameterDescriptor(
