@@ -17,7 +17,7 @@ def generate_launch_description():
     waypoints_file = os.path.join(app_package_path, 'config', 'waypoints.yaml')
     inventory_config = os.path.join(app_package_path, 'config', 'inventory_config.yaml')
 
-    # Inventory FSM Node
+    # Inventory FSM Node (uses Nav2 for navigation)
     inventory_fsm_node = Node(
         package='app',
         executable='inventory_fsm_node',
@@ -26,20 +26,6 @@ def generate_launch_description():
         parameters=[{
             'backend_url': 'http://localhost:8000',
             'backend_timeout': 15.0,
-        }]
-    )
-
-    # Waypoint Navigator Node
-    waypoint_navigator_node = Node(
-        package='app',
-        executable='waypoint_navigator_node',
-        name='waypoint_navigator',
-        output='screen',
-        parameters=[{
-            'speed_linear': 0.2,
-            'speed_angular': 0.5,
-            'goal_tolerance': 0.15,
-            'obstacle_distance': 0.3,
             'waypoints_file': waypoints_file,
         }]
     )
@@ -84,7 +70,6 @@ def generate_launch_description():
     return LaunchDescription([
         yolov11_launch,
         inventory_fsm_node,
-        waypoint_navigator_node,
         qr_scanner_node,
         yolo_detector_node,
     ])
