@@ -92,6 +92,14 @@ def _init_db(conn: sqlite3.Connection):
             shelf_id       TEXT NOT NULL UNIQUE,
             expected_items TEXT NOT NULL DEFAULT '[]'
         );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            username    TEXT NOT NULL UNIQUE,
+            password    TEXT NOT NULL,
+            is_admin    INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     """)
 
     # Seed shelf_inventory (ignore if rows already exist)
@@ -413,5 +421,71 @@ def get_scan_results(scan_id: str) -> list:
     except Exception as e:
         logger.error(f"Error fetching scan results for {scan_id}: {e}")
         return []
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
+
+def create_user(username: str, password_hash: str, is_admin: bool = False) -> Optional[dict]:
+    """Create a new user. Returns the created row as dict."""
+    conn = _get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)",
+            (username, password_hash, 1 if is_admin else 0),
+        )
+        conn.commit()
+        cur = conn.execute("SELECT id, username, is_admin, created_at FROM users WHERE username = ?", (username,))
+        row = cur.fetchone()
+        if row:
+            d = _row_to_dict(row)
+            d["is_admin"] = bool(d["is_admin"])
+            return d
+        return None
+    except Exception as e:
+        logger.error(f"Error creating user {username}: {e}")
+        raise
+    finally:
+        conn.close()
+
+
+def get_user_by_username(username: str) -> Optional[dict]:
+    """Get user by username. Returns full row including password hash."""
+    conn = _get_connection()
+    try:
+        cur = conn.execute("SELECT * FROM users WHERE username = ?", (username,))
+        row = cur.fetchone()
+        if row:
+            d = _row_to_dict(row)
+            d["is_admin"] = bool(d["is_admin"])
+            return d
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching user {username}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    """Get user by ID. Returns row without password hash."""
+    conn = _get_connection()
+    try:
+        cur = conn.execute(
+            "SELECT id, username, is_admin, created_at FROM users WHERE id = ?",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if row:
+            d = _row_to_dict(row)
+            d["is_admin"] = bool(d["is_admin"])
+            return d
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching user {user_id}: {e}")
+        return None
     finally:
         conn.close()

@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import commands, status, detections, camera, websocket_route
+from app.routes import auth, commands, status, detections, camera, websocket_route
 from app.config import get_settings
 from app.rosbridge import rosbridge_client
 from app.ros_handlers import setup_ros_handlers
@@ -47,6 +47,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(commands.router)
 app.include_router(status.router)
 app.include_router(detections.router)
