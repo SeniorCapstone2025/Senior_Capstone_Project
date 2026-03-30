@@ -107,7 +107,6 @@ def _init_db(conn: sqlite3.Connection):
         ("shelf_1", json.dumps(["bottle", "mouse"])),
         ("shelf_2", json.dumps(["cup", "book"])),
         ("shelf_3", json.dumps(["keyboard", "mouse"])),
-        ("shelf_4", json.dumps(["bottle", "book"])),
     ]
     cur.executemany(
         "INSERT OR IGNORE INTO shelf_inventory (shelf_id, expected_items) VALUES (?, ?)",
