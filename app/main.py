@@ -23,8 +23,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting rosbridge connection...")
     rosbridge_client.url = settings.rosbridge_url
-    await rosbridge_client.connect()
-    await setup_ros_handlers()
+    try:
+        
+        await rosbridge_client.connect()
+        await setup_ros_handlers()
+    except Exception as e:
+        logger.error(f"Error during rosbridge connection: {e}")
 
     yield
 

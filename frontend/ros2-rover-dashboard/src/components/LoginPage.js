@@ -12,32 +12,25 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 //  AUTHENTICATION SERVICE  (stub — wire up later)
 // ─────────────────────────────────────────────
 const authService = {
-  /**
-   * Replace the body of this function with your real auth call.
-   * Expected response shape:
-   *   { token: string, user: { id, username, role } }
-   *
-   * Throw an Error (with a user-readable .message) on failure.
-   */
   async login(username, password) {
-    // TODO: replace with real API call, e.g.:
-    // const res = await fetch(`${API_URL}/auth/login`, {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ username, password }),
-    // });
-    // if (!res.ok) {
-    //   const err = await res.json();
-    //   throw new Error(err.detail || "Authentication failed");
-    // }
-    // return res.json();   // { token, user }
-
-    // ── STUB: always resolves after 1 s ──
-    await new Promise((r) => setTimeout(r, 1000));
-    if (username === "admin" && password === "mars") {
-      return { token: "stub-token", user: { id: 1, username, role: "operator" } };
+    const res = await fetch(`${API_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Authentication failed");
     }
-    throw new Error("Invalid credentials");
+    const data = await res.json();
+    return {
+      token: data.access_token,
+      user: {
+        id: data.user.id,
+        username: data.user.username,
+        role: data.user.is_admin ? "admin" : "operator",
+      },
+    };
   },
 };
 
@@ -114,11 +107,9 @@ export default function LoginPage({ onLoginSuccess }) {
     try {
       const result = await authService.login(username.trim(), password);
 
-      // ── Store token however your app needs it ──
-      // localStorage.setItem("mars_token", result.token);
-      // or use a context / cookie / etc.
+      localStorage.setItem("mars_token", result.token);
+      localStorage.setItem("mars_user", JSON.stringify(result.user));
 
-      // Notify parent — e.g. redirect to dashboard
       if (typeof onLoginSuccess === "function") {
         onLoginSuccess(result);
       }
