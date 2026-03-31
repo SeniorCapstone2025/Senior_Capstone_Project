@@ -7,6 +7,8 @@ from app.config import get_settings
 from app.rosbridge import rosbridge_client
 from app.ros_handlers import setup_ros_handlers
 import logging
+from datetime import datetime
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -16,6 +18,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+# Track application startup time
+app_start_time = time.time()
 
 
 @asynccontextmanager
@@ -73,5 +78,13 @@ async def test():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "app": settings.app_name}
+    """Health check endpoint with detailed system information"""
+    uptime = time.time() - app_start_time
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "version": "2.0.0",
+        "timestamp": datetime.now().isoformat(),
+        "uptime": uptime,
+        "rosbridge_connected": rosbridge_client.is_connected
+    }

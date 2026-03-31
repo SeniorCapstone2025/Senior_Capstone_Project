@@ -111,3 +111,59 @@ def _safe_save_command(command: str, status: str):
         save_command(command, status)
     except Exception as e:
         logger.warning(f"Failed to save command: {e}")
+
+
+@router.get("/test-db")
+async def test_database():
+    """Test database connection and retrieve statistics."""
+    try:
+        from app.database import _get_connection
+        
+        conn = _get_connection()
+        cursor = conn.cursor()
+        
+        # Test connection with a simple query
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+        
+        # Get database file path
+        db_path = conn.execute("PRAGMA database_list").fetchall()[0][2]
+        
+        # Count tables
+        cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        tables_count = cursor.fetchone()[0]
+        
+        # Count total rows across all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        tables = cursor.fetchall()
+        
+        rows_count = 0
+        for table in tables:
+            table_name = table[0]
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                rows_count += cursor.fetchone()[0]
+            except:
+                pass
+        
+        conn.close()
+        
+        return {
+            "status": "connected",
+            "database": db_path,
+            "message": "Database connection successful",
+            "tables_count": tables_count,
+            "rows_count": rows_count,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Database test failed: {e}")
+        return {
+            "status": "error",
+            "database": "unknown",
+            "message": f"Database connection failed: {str(e)}",
+            "tables_count": 0,
+            "rows_count": 0,
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }
