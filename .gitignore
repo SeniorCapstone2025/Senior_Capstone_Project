@@ -15,3 +15,6 @@ frontend/ros2-rover-dashboard/.next
 build/
 install/
 log/
+*.db
+*.db-shm
+*.db-wal

@@ -1,6 +1,7 @@
 # Waypoints for inventory scanning navigation
-# Coordinates are in meters relative to the map origin
-# theta is orientation in radians
+# 4x6 ft quadrilateral track (one side 3.5ft)
+# Coordinates recorded from AMCL pose on the real robot
+# theta is orientation in radians (yaw)
 
 waypoints:
   home:
@@ -9,19 +10,19 @@ waypoints:
     theta: 0.0
 
   shelf_1:
-    x: 1.0
-    y: 0.0
-    theta: 1.57  # facing the shelf (90 degrees)
+    x: -1.0290
+    y: -0.1003
+    theta: -3.0295  # ~174 deg - facing back toward home
 
   shelf_2:
-    x: 2.0
-    y: 0.0
-    theta: 1.57
+    x: -0.9975
+    y: -1.9223
+    theta: -2.8169  # ~161 deg - facing back toward home
 
   shelf_3:
-    x: 3.0
-    y: 0.0
-    theta: 1.57
+    x: -0.3119
+    y: -1.7865
+    theta: 0.0993   # ~6 deg - facing forward
 
 # Default scan route (order of shelves to visit)
 scan_route:

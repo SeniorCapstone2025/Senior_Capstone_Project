@@ -1,13 +1,33 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { Camera, Wifi, WifiOff, AlertCircle } from 'lucide-react';
 import { useCameraStream } from '../hooks/useCameraStream';
+
+const VIDEO_URL = process.env.NEXT_PUBLIC_VIDEO_URL || '';
+const MJPEG_SRC = VIDEO_URL
+  ? `${VIDEO_URL}/stream?topic=/ascamera/camera_publisher/rgb0/image`
+  : '';
+
+const FSM_BANNER = {
+  IDLE:                     { text: 'IDLE',              color: '#9ca3af' },
+  NAVIGATE_TO_SHELF:        { text: 'NAVIGATING TO',     color: '#60a5fa' },
+  ALIGN_WITH_SHELF:         { text: 'ALIGNING',          color: '#60a5fa' },
+  FETCH_EXPECTED_INVENTORY: { text: 'LOADING INVENTORY', color: '#facc15' },
+  RUN_YOLO_DETECTION:       { text: 'DETECTING',         color: '#4ade80' },
+  COMPARE_INVENTORY:        { text: 'COMPARING',         color: '#facc15' },
+  SEND_RESULTS:             { text: 'SENDING RESULTS',   color: '#facc15' },
+  RETURN_HOME:              { text: 'RETURNING HOME',    color: '#60a5fa' },
+  ERROR:                    { text: 'ERROR',             color: '#f87171' },
+};
 
 export default function CameraFeed({ isActive = true }) {
   const {
     frame,
     detections,
+    liveDetections,
+    fsmState,
+    fsmShelfId,
     connected,
     streaming,
     error,
@@ -16,17 +36,97 @@ export default function CameraFeed({ isActive = true }) {
     stopStream
   } = useCameraStream();
 
-  // Auto-start stream when rover becomes active
-  React.useEffect(() => {
-    if (isActive && connected && !streaming) {
-      console.log('Starting stream because isActive=true, connected=true, streaming=false');
+  const useMjpeg = !!MJPEG_SRC;
+  const canvasRef = useRef(null);
+  const imgRef = useRef(null);
+
+  // Auto-start stream when rover becomes active (fallback mode only)
+  useEffect(() => {
+    if (!useMjpeg && isActive && connected && !streaming) {
       startStream();
     }
-    // Note: We don't auto-stop the stream when isActive becomes false
-    // This prevents the stream from stopping when status updates to 'idle'
-    // User can manually stop using the stop button if needed
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, connected, streaming]);
+  }, [isActive, connected, streaming, useMjpeg]);
+
+  // ---- Canvas overlay drawing ----
+  const drawOverlay = useCallback(() => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img) return;
+
+    // Match canvas resolution to displayed image size
+    const rect = img.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw bounding boxes
+    if (liveDetections.length > 0) {
+      const sample = liveDetections[0];
+      const srcW = sample.width || 640;
+      const srcH = sample.height || 480;
+      const scaleX = canvas.width / srcW;
+      const scaleY = canvas.height / srcH;
+
+      liveDetections.forEach((det) => {
+        const [x1, y1, x2, y2] = det.box;
+        const dx = x1 * scaleX;
+        const dy = y1 * scaleY;
+        const dw = (x2 - x1) * scaleX;
+        const dh = (y2 - y1) * scaleY;
+
+        // Box
+        ctx.strokeStyle = '#4ade80';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(dx, dy, dw, dh);
+
+        // Label background
+        const label = `${det.class_name} ${(det.score * 100).toFixed(0)}%`;
+        ctx.font = 'bold 14px monospace';
+        const textW = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(dx, dy - 20, textW + 8, 20);
+
+        // Label text
+        ctx.fillStyle = '#4ade80';
+        ctx.fillText(label, dx + 4, dy - 5);
+      });
+    }
+
+    // Draw FSM state banner
+    const banner = FSM_BANNER[fsmState] || FSM_BANNER.IDLE;
+    let bannerText = banner.text;
+    if (fsmState === 'NAVIGATE_TO_SHELF' && fsmShelfId) {
+      bannerText += ` ${fsmShelfId}`;
+    }
+
+    ctx.font = 'bold 18px monospace';
+    const tw = ctx.measureText(bannerText).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(8, 8, tw + 16, 30);
+    ctx.fillStyle = banner.color;
+    ctx.fillText(bannerText, 16, 29);
+  }, [liveDetections, fsmState, fsmShelfId]);
+
+  // Redraw overlay when detections or FSM state change
+  useEffect(() => {
+    if (useMjpeg) {
+      drawOverlay();
+    }
+  }, [useMjpeg, drawOverlay]);
+
+  // Also redraw on window resize so the canvas stays aligned
+  useEffect(() => {
+    if (!useMjpeg) return;
+    const handleResize = () => drawOverlay();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [useMjpeg, drawOverlay]);
+
+  // Pick which detections list to show in the stats panel
+  const activeDetections = useMjpeg ? liveDetections : detections;
 
   return (
     <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
@@ -52,16 +152,24 @@ export default function CameraFeed({ isActive = true }) {
             )}
           </div>
 
-          {/* Streaming Status */}
-          {streaming && (
+          {/* Streaming Status (fallback mode) */}
+          {!useMjpeg && streaming && (
             <div className="flex items-center bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold">
               <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
               REC
             </div>
           )}
 
-          {/* Frame Counter */}
-          {streaming && (
+          {/* MJPEG live indicator */}
+          {useMjpeg && (
+            <div className="flex items-center bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold">
+              <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
+              LIVE
+            </div>
+          )}
+
+          {/* Frame Counter (fallback mode) */}
+          {!useMjpeg && streaming && (
             <span className="text-xs text-gray-500">
               Frame #{frameNumber}
             </span>
@@ -78,61 +186,76 @@ export default function CameraFeed({ isActive = true }) {
           </div>
         )}
 
-        {!connected ? (
-          <div className="text-center text-gray-600">
-            <WifiOff size={64} className="mx-auto mb-4 opacity-50" />
-            <p className="font-semibold">Connecting to camera...</p>
-            <p className="text-sm">Establishing WebSocket connection</p>
-          </div>
-        ) : !streaming || !frame ? (
-          <div className="text-center text-gray-600">
-            <Camera size={64} className="mx-auto mb-4 opacity-50" />
-            <p className="font-semibold">Camera feed inactive</p>
-            <p className="text-sm">
-              {isActive ? 'Starting camera stream...' : 'Start rover to activate camera'}
-            </p>
-          </div>
-        ) : (
+        {useMjpeg ? (
+          /* -------- MJPEG MODE -------- */
           <>
-            {/* Video Frame */}
             <img
-              src={`data:image/jpeg;base64,${frame}`}
+              ref={imgRef}
+              src={MJPEG_SRC}
               alt="Camera Feed"
               className="w-full h-full object-contain"
+              onLoad={drawOverlay}
             />
-
-            {/* Detection Overlay Info */}
-            {detections.length > 0 && (
-              <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-4 py-2 rounded-lg">
-                <p className="text-green-400 text-sm font-semibold mb-1">
-                  Detections: {detections.length}
-                </p>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {detections.slice(0, 5).map((detection, idx) => (
-                    <div key={idx} className="text-xs text-white flex items-center justify-between space-x-3">
-                      <span className="font-medium">{detection.object_name}</span>
-                      <span className="text-green-400">{(detection.confidence * 100).toFixed(0)}%</span>
-                    </div>
-                  ))}
-                  {detections.length > 5 && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      +{detections.length - 5} more
-                    </p>
-                  )}
-                </div>
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+            />
+          </>
+        ) : (
+          /* -------- FALLBACK BASE64 MODE -------- */
+          <>
+            {!connected ? (
+              <div className="text-center text-gray-600">
+                <WifiOff size={64} className="mx-auto mb-4 opacity-50" />
+                <p className="font-semibold">Connecting to camera...</p>
+                <p className="text-sm">Establishing WebSocket connection</p>
               </div>
+            ) : !streaming || !frame ? (
+              <div className="text-center text-gray-600">
+                <Camera size={64} className="mx-auto mb-4 opacity-50" />
+                <p className="font-semibold">Camera feed inactive</p>
+                <p className="text-sm">
+                  {isActive ? 'Starting camera stream...' : 'Start rover to activate camera'}
+                </p>
+              </div>
+            ) : (
+              <>
+                <img
+                  src={`data:image/jpeg;base64,${frame}`}
+                  alt="Camera Feed"
+                  className="w-full h-full object-contain"
+                />
+                {detections.length > 0 && (
+                  <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-4 py-2 rounded-lg">
+                    <p className="text-green-400 text-sm font-semibold mb-1">
+                      Detections: {detections.length}
+                    </p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {detections.slice(0, 5).map((detection, idx) => (
+                        <div key={idx} className="text-xs text-white flex items-center justify-between space-x-3">
+                          <span className="font-medium">{detection.object_name}</span>
+                          <span className="text-green-400">{(detection.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                      ))}
+                      {detections.length > 5 && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          +{detections.length - 5} more
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse"></div>
+                </div>
+              </>
             )}
-
-            {/* Recording Indicator Pulse */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse"></div>
-            </div>
           </>
         )}
       </div>
 
-      {/* Manual Controls (for debugging) */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* Manual Controls (for debugging, fallback mode only) */}
+      {!useMjpeg && process.env.NODE_ENV === 'development' && (
         <div className="mt-4 flex items-center justify-center space-x-2">
           <button
             onClick={startStream}
@@ -152,11 +275,12 @@ export default function CameraFeed({ isActive = true }) {
       )}
 
       {/* Detection Statistics */}
-      {streaming && detections.length > 0 && (
+      {activeDetections.length > 0 && (
         <div className="mt-4 grid grid-cols-3 gap-2">
           {Object.entries(
-            detections.reduce((acc, det) => {
-              acc[det.object_name] = (acc[det.object_name] || 0) + 1;
+            activeDetections.reduce((acc, det) => {
+              const name = det.class_name || det.object_name;
+              acc[name] = (acc[name] || 0) + 1;
               return acc;
             }, {})
           ).slice(0, 3).map(([name, count]) => (

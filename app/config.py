@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
 
@@ -6,15 +6,12 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
-    model_config = SettingsConfigDict(
-        env_file="app/.env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
+    # Supabase Configuration (optional — kept for backwards compat)
+    supabase_url: str = ""
+    supabase_service_key: str = ""
 
-    # Supabase Configuration
-    supabase_url: str
-    supabase_service_key: str
+    # Local SQLite database path
+    db_path: str = "app/rover.db"
 
     # Application Settings
     app_name: str = "ROS2 Rover Control"
@@ -27,19 +24,25 @@ class Settings(BaseSettings):
     yolo_model_path: str = "model/yolo11n.pt"
 
     # Status Caching Settings
-    status_cache_battery_threshold: float = 5.0
-    status_cache_heartbeat_seconds: int = 300
+    status_cache_battery_threshold: float = 5.0  # Percentage change to trigger save
+    status_cache_heartbeat_seconds: int = 300    # 5 minutes in seconds
 
     # Rosbridge Configuration
-    rosbridge_url: str = "ws://172.20.10.2:9090"
+    rosbridge_url: str = "ws://192.168.149.1:9090"
     rosbridge_reconnect_interval: int = 5
     rosbridge_connect_timeout: int = 10
 
+    class Config:
+        env_file = "app/.env"
+        case_sensitive = False
+
     @property
     def cors_origins_list(self) -> List[str]:
+        """Convert comma-separated CORS origins to list"""
         return [origin.strip() for origin in self.cors_origins.split(",")]
 
 
 @lru_cache()
 def get_settings() -> Settings:
+    """Get cached settings instance"""
     return Settings()
