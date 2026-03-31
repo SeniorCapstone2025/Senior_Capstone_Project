@@ -41,12 +41,12 @@ const authService = {
 function MarsLogo() {
   return (
     <div className="flex flex-col items-center gap-3">
-      {/* Animated radar ring */}
+      {/* Animated radar ring with red-orange theme */}
       <div className="relative flex items-center justify-center w-20 h-20">
-        <div className="absolute inset-0 rounded-full border-2 border-orange-500/20 animate-ping" />
-        <div className="absolute inset-2 rounded-full border border-orange-500/30" />
-        <div className="relative z-10 flex items-center justify-center w-14 h-14 rounded-full bg-gray-900 border-2 border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
-          <Shield className="w-7 h-7 text-orange-400" />
+        <div className="absolute inset-0 rounded-full border-2 border-red-500/20 animate-ping" />
+        <div className="absolute inset-2 rounded-full border border-red-500/30" />
+        <div className="relative z-10 flex items-center justify-center w-14 h-14 rounded-lg bg-gradient-to-br from-red-600 to-orange-600 shadow-lg shadow-red-900/50">
+          <Shield className="w-7 h-7 text-white" />
         </div>
       </div>
 
@@ -127,7 +127,7 @@ export default function LoginPage({ onLoginSuccess }) {
         className="fixed inset-0 pointer-events-none opacity-[0.03]"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(249,115,22,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,0.8) 1px, transparent 1px)",
+            "linear-gradient(rgba(220,38,38,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,0.8) 1px, transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       />
@@ -137,7 +137,7 @@ export default function LoginPage({ onLoginSuccess }) {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
 
           {/* Top accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-orange-600 via-orange-400 to-orange-600" />
+          <div className="h-1 w-full bg-gradient-to-r from-red-600 via-red-500 to-orange-600" />
 
           <div className="p-8 flex flex-col gap-8">
 
@@ -178,7 +178,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   placeholder="Enter username"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3
                              text-white font-mono text-sm placeholder-gray-600
-                             focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent
+                             focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent
                              disabled:opacity-50 disabled:cursor-not-allowed
                              transition-all duration-200"
                 />
@@ -206,7 +206,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     placeholder="Enter password"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 pr-12
                                text-white font-mono text-sm placeholder-gray-600
-                               focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent
+                               focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent
                                disabled:opacity-50 disabled:cursor-not-allowed
                                transition-all duration-200"
                   />
@@ -236,11 +236,11 @@ export default function LoginPage({ onLoginSuccess }) {
                 type="submit"
                 disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2
-                           bg-orange-600 hover:bg-orange-500 active:bg-orange-700
+                           bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 active:from-red-800 active:to-orange-800
                            disabled:bg-gray-700 disabled:cursor-not-allowed
                            text-white font-mono text-sm font-semibold tracking-widest uppercase
                            py-3 rounded-lg
-                           shadow-[0_0_20px_rgba(249,115,22,0.25)] hover:shadow-[0_0_28px_rgba(249,115,22,0.4)]
+                           shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:shadow-[0_0_28px_rgba(220,38,38,0.5)]
                            transition-all duration-200"
               >
                 {isLoading ? (
