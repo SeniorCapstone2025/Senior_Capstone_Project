@@ -11,16 +11,19 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  ArrowLeft,
+  Home,
   RefreshCw,
   Zap,
   Calendar,
-  Hash
+  Hash,
+  BarChart3,
+  LogOut,
+  User
 } from 'lucide-react';
 import { useRoverStatus } from '../hooks/useRoverStatus';
 import apiService from '../services/api';
 
-export default function BackendInfo() {
+export default function BackendInfo({ currentUser, onLogout }) {
   const router = useRouter();
   const { status, loading: statusLoading, error: statusError } = useRoverStatus(5000);
   
@@ -76,15 +79,31 @@ export default function BackendInfo() {
           </div>
         </div>
 
-        <div className="flex-1"></div>
+        <div className="flex-1 flex flex-col space-y-2">
+          <button
+            onClick={() => router.push('/')}
+            className="w-16 h-16 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center transition-all mx-auto"
+            title="Dashboard"
+          >
+            <Home size={24} />
+          </button>
 
-        <button
-          onClick={() => router.push('/')}
-          className="w-16 h-16 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center transition-all"
-          title="Back to Dashboard"
-        >
-          <ArrowLeft size={24} />
-        </button>
+          <button
+            onClick={() => router.push('/inventory')}
+            className="w-16 h-16 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center transition-all mx-auto"
+            title="Inventory Metrics"
+          >
+            <BarChart3 size={24} />
+          </button>
+
+          <button
+            onClick={() => router.push('/backend')}
+            className="w-16 h-16 bg-blue-700 hover:bg-blue-600 rounded-lg flex items-center justify-center transition-all mx-auto"
+            title="Backend Monitor (Current)"
+          >
+            <Database size={24} />
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -95,14 +114,51 @@ export default function BackendInfo() {
             <h1 className="text-4xl font-bold text-white mb-2">Backend System Monitor</h1>
             <p className="text-gray-500">Real-time backend status and diagnostics</p>
           </div>
-          <button
-            onClick={fetchBackendInfo}
-            disabled={loading}
-            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-all"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* User Info */}
+            {currentUser && (
+              <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg border border-gray-700">
+                <User size={18} className="text-orange-400" />
+                <span className="text-sm text-gray-300">{currentUser.username}</span>
+                <span className="text-xs text-gray-500">({currentUser.role})</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => router.push('/')}
+              className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-all border border-gray-700"
+            >
+              <Home size={20} />
+              <span>Dashboard</span>
+            </button>
+            <button
+              onClick={() => router.push('/inventory')}
+              className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-all border border-gray-700"
+            >
+              <BarChart3 size={20} />
+              <span>Inventory Metrics</span>
+            </button>
+            <button
+              onClick={fetchBackendInfo}
+              disabled={loading}
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-all"
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              <span>Refresh</span>
+            </button>
+
+            {/* Logout Button */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center space-x-2 bg-red-900 hover:bg-red-800 text-red-100 px-4 py-2 rounded-lg transition-all border border-red-700"
+                title="Log out"
+              >
+                <LogOut size={20} />
+                <span>Logout</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Last Refresh Time */}

@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, commands, status, detections, camera, websocket_route
+from app.routes import auth, commands, status, detections, websocket_route, inventory
+# from app.routes import camera  # TODO: Enable when zbar is properly configured
 from app.config import get_settings
 from app.rosbridge import rosbridge_client
 from app.ros_handlers import setup_ros_handlers
@@ -55,7 +56,8 @@ app.include_router(auth.router)
 app.include_router(commands.router)
 app.include_router(status.router)
 app.include_router(detections.router)
-app.include_router(camera.router)
+# app.include_router(camera.router)  # TODO: Enable when zbar is properly configured
+app.include_router(inventory.router)
 app.include_router(websocket_route.router)
 
 @app.get("/")

@@ -16,13 +16,15 @@ import {
   Settings,
   Database,
   AlertCircle,
-  BarChart3
+  BarChart3,
+  LogOut,
+  User
 } from 'lucide-react';
 import { useRoverStatus } from '../hooks/useRoverStatus';
 import { useRoverCommands } from '../hooks/useRoverCommands';
 import CameraFeed from './CameraFeed';
 
-export default function RoverDashboard() {
+export default function RoverDashboard({ currentUser, onLogout }) {
   const router = useRouter();
   
   // Use real API hooks
@@ -278,6 +280,15 @@ export default function RoverDashboard() {
             <p className="text-gray-500">Mobile Autonomous Rover System - Inventory Scanning & Logging</p>
           </div>
           <div className="flex items-center space-x-3">
+            {/* User Info */}
+            {currentUser && (
+              <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg border border-gray-700">
+                <User size={18} className="text-orange-400" />
+                <span className="text-sm text-gray-300">{currentUser.username}</span>
+                <span className="text-xs text-gray-500">({currentUser.role})</span>
+              </div>
+            )}
+
             {/* Inventory Metrics button — same style as Backend Monitor */}
             <button
               onClick={() => router.push('/inventory')}
@@ -293,6 +304,18 @@ export default function RoverDashboard() {
               <Database size={20} />
               <span>Backend Monitor</span>
             </button>
+
+            {/* Logout Button */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center space-x-2 bg-red-900 hover:bg-red-800 text-red-100 px-4 py-2 rounded-lg transition-all border border-red-700"
+                title="Log out"
+              >
+                <LogOut size={20} />
+                <span>Logout</span>
+              </button>
+            )}
           </div>
         </div>
 
