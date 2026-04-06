@@ -25,13 +25,27 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Mock/default scan session for demo purposes
+// // Mock/default scan session for demo purposes
+// const DEFAULT_SCAN_SESSION = {
+//   id: 'SCN-20240318-004',
+//   started: '2024-03-18 14:22:11',
+//   completed: '2024-03-18 14:47:03',
+//   duration: '24m 52s',
+//   aisle: 'A3–A7',
+//   operator: 'M.A.R.S. Unit 01',
+//   totalShelves: 0,
+//   totalExpected: 0,
+//   totalFound: 0,
+//   totalMissing: 0,
+//   totalUnexpected: 0,
+// };
+
 const DEFAULT_SCAN_SESSION = {
-  id: 'SCN-20240318-004',
-  started: '2024-03-18 14:22:11',
-  completed: '2024-03-18 14:47:03',
-  duration: '24m 52s',
-  aisle: 'A3–A7',
+  id: '—',
+  started: '—',
+  completed: '—',
+  duration: '—',
+  aisle: '—',
   operator: 'M.A.R.S. Unit 01',
   totalShelves: 0,
   totalExpected: 0,
@@ -43,6 +57,24 @@ const DEFAULT_SCAN_SESSION = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility Functions
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all scans from the backend API (most recent first)
+ * @returns {Promise<array>} Array of scan objects
+ */
+async function fetchAllScans() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/inventory/scans`);
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.scans || [];
+  } catch (error) {
+    console.error('Error fetching scans:', error);
+    throw error;
+  }
+}
 
 /**
  * Fetch scan data from the backend API
@@ -62,30 +94,68 @@ async function fetchScanData(scanId) {
   }
 }
 
+// /**
+//  * Convert API scan results to shelf list format (original — expects {sku, name, qty} objects)
+//  */
+// function transformResultsToShelves(results) {
+//   return results.map((result) => {
+//     const shelf = {
+//       id: result.shelf_id,
+//       label: `Shelf ${result.shelf_id}`,
+//       expected: result.expected_items || [],
+//       unexpected: result.unexpected_items || [],
+//       status: getShelfStatus(result),
+//     };
+//     const detectedMap = new Map(
+//       (result.detected_items || []).map((item) => [item.sku, item.qty || 1])
+//     );
+//     shelf.expected = shelf.expected.map((item) => ({
+//       ...item,
+//       found: detectedMap.get(item.sku) || 0,
+//     }));
+//     return shelf;
+//   });
+// }
+
 /**
- * Convert API scan results to shelf list format
- * @param {array} results - Array of scan results from API
- * @returns {array} Array of shelf objects formatted for UI
+ * Generate a deterministic SKU from a name using ASCII values.
+ * e.g. "bottle" -> "SKU-98111116116108101" (ascii of each char)
+ */
+function generateSku(name) {
+  const ascii = name.split('').map((c) => c.charCodeAt(0)).join('');
+  return `SKU-${ascii}`;
+}
+
+/**
+ * Convert API scan results to shelf list format.
+ * Items are simple strings (e.g. "bottle", "mouse"), not objects.
  */
 function transformResultsToShelves(results) {
   return results.map((result) => {
+    const expected = result.expected_items || [];
+    const detected = result.detected_items || [];
+    const unexpected = result.unexpected_items || [];
+
+    const detectedSet = new Set(detected.map((i) => typeof i === 'string' ? i.toLowerCase() : i));
+
     const shelf = {
       id: result.shelf_id,
       label: `Shelf ${result.shelf_id}`,
-      expected: result.expected_items || [],
-      unexpected: result.unexpected_items || [],
+      expected: expected.map((item) => {
+        const name = typeof item === 'string' ? item : item.name;
+        return {
+          sku: generateSku(name),
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          qty: 1,
+          found: detectedSet.has(name.toLowerCase()) ? 1 : 0,
+        };
+      }),
+      unexpected: unexpected.map((item) => {
+        const name = typeof item === 'string' ? item : item.name;
+        return { sku: generateSku(name), name: name.charAt(0).toUpperCase() + name.slice(1), qty: 1 };
+      }),
       status: getShelfStatus(result),
     };
-
-    // Add "found" property to expected items for comparison
-    const detectedMap = new Map(
-      (result.detected_items || []).map((item) => [item.sku, item.qty || 1])
-    );
-
-    shelf.expected = shelf.expected.map((item) => ({
-      ...item,
-      found: detectedMap.get(item.sku) || 0,
-    }));
 
     return shelf;
   });
@@ -167,15 +237,20 @@ export default function InventoryMetrics({ currentUser, onLogout }) {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [scanId, setScanId] = useState('SCN-20240318-004'); // Default scan ID - can be parameterized
+  // const [scanId, setScanId] = useState('SCN-20240318-004'); // Default scan ID - can be parameterized
+  const [scanId, setScanId] = useState(null); // Will be set from latest scan
+  const [availableScans, setAvailableScans] = useState([]);
 
   // Fetch scan data from API
-  const fetchData = async () => {
+  const fetchData = async (id) => {
+    const targetId = id || scanId;
+    if (!targetId) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      const apiData = await fetchScanData(scanId);
+      const apiData = await fetchScanData(targetId);
 
       if (apiData.status === 'success') {
         const { scanSession: session, shelves: shelvesData } =
@@ -203,9 +278,33 @@ export default function InventoryMetrics({ currentUser, onLogout }) {
     }
   };
 
-  // Fetch data on component mount and when scanId changes
+  // Load available scans on mount, auto-select the latest
   useEffect(() => {
-    fetchData();
+    async function loadScans() {
+      try {
+        const scans = await fetchAllScans();
+        setAvailableScans(scans);
+        if (scans.length > 0) {
+          const latestId = scans[0].scan_id;
+          setScanId(latestId);
+          fetchData(latestId);
+        } else {
+          setLoading(false);
+          setError('No scans found. Run a scan from the robot first.');
+        }
+      } catch (err) {
+        setLoading(false);
+        setError(`Failed to load scans: ${err.message}`);
+      }
+    }
+    loadScans();
+  }, []);
+
+  // Fetch data when scanId changes (from dropdown)
+  useEffect(() => {
+    if (scanId) {
+      fetchData(scanId);
+    }
   }, [scanId]);
 
   // Update selected shelf when shelves change
@@ -286,6 +385,21 @@ export default function InventoryMetrics({ currentUser, onLogout }) {
             <p className="text-gray-500">Shelf-level scan results — expected vs. found</p>
           </div>
           <div className="flex items-center space-x-2">
+            {/* Scan Selector */}
+            {availableScans.length > 0 && (
+              <select
+                value={scanId || ''}
+                onChange={(e) => setScanId(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
+              >
+                {availableScans.map((scan) => (
+                  <option key={scan.scan_id} value={scan.scan_id}>
+                    {scan.scan_id} — {scan.status}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {/* User Info */}
             {currentUser && (
               <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg border border-gray-700">

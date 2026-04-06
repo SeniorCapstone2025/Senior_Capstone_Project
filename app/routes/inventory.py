@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.database import (
     get_scan,
+    get_all_scans,
     get_scan_results,
     create_scan,
     update_scan_status,
@@ -29,6 +30,21 @@ router = APIRouter(
 # ─────────────────────────────────────────────────────────────────────────────
 # Scan Sessions
 # ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/scans")
+async def list_scans(limit: int = Query(default=50, le=200)):
+    """List all scan sessions, most recent first."""
+    try:
+        scans = get_all_scans(limit)
+        return {
+            "status": "success",
+            "scans": scans,
+            "total": len(scans),
+        }
+    except Exception as e:
+        logger.error(f"Error listing scans: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/scans")
 async def create_scan_session(scan_data: dict):
@@ -283,12 +299,19 @@ def _calculate_scan_metrics(results: List[dict]) -> dict:
         detected = result.get("detected_items", [])
         missing = result.get("missing_items", [])
         unexpected = result.get("unexpected_items", [])
-        
-        # Count items
-        expected_count = sum(item.get("qty", 1) for item in expected)
-        detected_count = sum(item.get("qty", 1) for item in detected)
-        missing_count = sum(item.get("qty", 1) for item in missing)
-        unexpected_count = sum(item.get("qty", 1) for item in unexpected)
+
+        # Count items — handles both string lists and object lists with qty
+        def _count(items):
+            if not items:
+                return 0
+            if isinstance(items[0], str):
+                return len(items)
+            return sum(item.get("qty", 1) for item in items)
+
+        expected_count = _count(expected)
+        detected_count = _count(detected)
+        missing_count = _count(missing)
+        unexpected_count = _count(unexpected)
         
         total_expected += expected_count
         total_found += detected_count
