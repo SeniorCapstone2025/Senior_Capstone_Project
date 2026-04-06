@@ -343,6 +343,27 @@ def get_scan(scan_id: str) -> Optional[dict]:
         conn.close()
 
 
+def get_all_scans(limit: int = 50) -> list:
+    """Get all scans, most recent first."""
+    conn = _get_connection()
+    try:
+        cur = conn.execute(
+            "SELECT * FROM scans ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+        rows = []
+        for row in cur.fetchall():
+            d = _row_to_dict(row)
+            d["shelf_ids"] = json.loads(d["shelf_ids"])
+            rows.append(d)
+        return rows
+    except Exception as e:
+        logger.error(f"Error fetching scans: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Shelf inventory
 # ---------------------------------------------------------------------------
