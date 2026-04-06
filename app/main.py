@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, commands, status, detections, websocket_route, inventory
+from app.routes import auth, commands, status, detections, websocket_route, inventory, schedule as schedule_route
 # from app.routes import camera  # TODO: Enable when zbar is properly configured
 from app.config import get_settings
 from app.rosbridge import rosbridge_client
 from app.ros_handlers import setup_ros_handlers
+from app.scheduler import start_scheduler, stop_scheduler
 import logging
 from datetime import datetime
 import time
@@ -30,15 +31,17 @@ async def lifespan(app: FastAPI):
     logger.info("Starting rosbridge connection...")
     rosbridge_client.url = settings.rosbridge_url
     try:
-        
         await rosbridge_client.connect()
         await setup_ros_handlers()
     except Exception as e:
         logger.error(f"Error during rosbridge connection: {e}")
 
+    start_scheduler()
+
     yield
 
     # Shutdown
+    stop_scheduler()
     logger.info("Shutting down rosbridge connection...")
     await rosbridge_client.disconnect()
 
@@ -64,6 +67,7 @@ app.include_router(detections.router)
 # app.include_router(camera.router)  # TODO: Enable when zbar is properly configured
 app.include_router(inventory.router)
 app.include_router(websocket_route.router)
+app.include_router(schedule_route.router)
 
 @app.get("/")
 async def root():

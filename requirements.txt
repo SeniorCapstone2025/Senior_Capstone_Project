@@ -10,3 +10,4 @@ bcrypt
 PyJWT
 qreader
 python-multipart
+apscheduler==3.10.4
