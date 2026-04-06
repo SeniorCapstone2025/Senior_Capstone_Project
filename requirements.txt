@@ -8,3 +8,4 @@ ultralytics==8.3.225
 roslibpy
 bcrypt
 PyJWT
+apscheduler==3.10.4
